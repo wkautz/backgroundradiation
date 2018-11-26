@@ -37,6 +37,7 @@ func main() {
 		for _, layer := range packet.Layers() {
 			fmt.Println(layer.LayerType())
 		}
+
 		fmt.Println("=====================")
 
 		//Get IPv4 Layer
@@ -61,3 +62,31 @@ func main() {
 		//if (i == 4) {break}
 	}
 }
+
+/*
+   PossibleOthers = Set<unique identifier>
+   portscan, oneflow: map<(src, dest), map<port, #packs in that port> >
+   networkscan: map<(ipsrc, portdest), map<ipdest, numpackets>>,
+   backscatter: map<ipsrc, numpackets(*with checks)>
+           checks: TCP: if flag is SA, A, R, RA
+                   UDP: if port == 53, 123, 137, 161
+                   ICMP: if (Type, code) = (0, 0), (11, 0) or Type == 3
+   TCP packets need to check for "scanflagpktratio"
+
+   Algorithm
+   for each packet:
+       create (ipsrc, ipdest), add to map
+       create (ipsrc, destport) add to map
+       add ipsrc to map (with checks)
+   for each key in port map:
+       check for conditions
+       if no conditions match, add to "PossibleOthers"
+   for each key in network map:
+       repeat
+   for each key backscatter map:
+       repeat
+
+
+   In each step we need to remove a packet from possibleOthers if it is classified
+   then we should have only nonclassified packets (with exception of small syns and small udps...)
+*/
