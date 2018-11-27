@@ -29,7 +29,93 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	return true
 }
 
+type net_pair struct {
+	sIP net.IP
+	dPort layers.TCPPort
+}
+
+var netMap map[net_pair]map[layers.TCPPort]int
+var backscatterMap map[net.IP]int
+
+/* =================== Network Scans ==================== */
+
+func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, netMap map[net_pair]map[layers.TCPPort]int) bool {
+	if !FIN && !ACK { return false }
+	pair := net_pair{srcIP, dstPort}
+	netMap[pair][dstIP]++
+	return true
+}
+
+func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[net_pair]map[layers.TCPPort]int) bool {
+	pair := net_pair{srcIP, dstPort}
+	netMap[pair][dstIP]++
+	return true
+}
+
+func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[net_pair]map[layers.TCPPort]int) bool {
+	//type, code = 8, 0 else return false
+	pair := net_pair{srcIP, dstPort}
+	netMap[pair][dstIP]++
+	return true
+}
+
+func printNetScanStats(netMap map[net_pair]map[layers.TCPPort]int) bool {
+	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
+	for k, v := range netMap {
+		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", k.sIP, k.dPort) //can we print this way?
+		fmt.Printf("\t Has %d ipDsts.\n", len(v))
+		count := 0
+		for k1, v1 := range v {
+			count += v1
+		}
+		fmt.Printf("\t and %d packets\n", count)
+	}
+	return true
+}
+
+/* ==================== Backscatter ========================= */
+
+func testBackscatterTCP(srcIP net.IP, backMap map[net.IP]int) bool {
+	//must pass the flags into this method and check here
+	//only accept: SA, A, R, RA
+	backMap[srcIP]++
+	return true
+}
+
+//TODO: NEED TO PASS IN PORTSRC
+func testBackscatterUDP(srcIP net.IP, backMap map[net.IP]int) bool {
+	//if portSrc != 53 && portSrc != 123 && portSrc != 137 && portSrc != 161 { return false }
+	backMap[srcIP]++
+	return true
+}
+
+
+//TODO: NEED TO PASS IN CODE AND TYPE FOR ICMP
+func testBackscatterICMP(srcIP net.IP, backMap map[net.IP]int) bool {
+	/*if code != 0 || type != 0 {
+		if code != 0 || type != 11 {
+			if type != 3 {
+				return false
+			}
+		}
+	}*/
+	backMap[srcIP]++
+	return true
+}
+
+func printBackscatterStats(backMap map[net.IP]int) bool {
+	fmt.Printf("Number of backscatters: %d\n", len(backMap))
+	for k, v := range backMap {
+		fmt.Printf("ipSrc: %s sent %d packets\n", k, v)
+	}
+	return true
+}
+
+/* ========================= Main Loop ========================== */
+
 func main() {
+	netMap = make(map[net_pair]map[layers.TCPPort]int)
+	backscatterMap = make(map[net.IP]int)
 	// Open file instead of device
 	handle, err = pcap.OpenOffline(pcapFile)
 	if err != nil {
@@ -81,6 +167,8 @@ func main() {
 			if testPortScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.SYN) {
 				portScanMap[tuple(ipSrc, ipDst)][dstPort] += 1
 			}
+			testNetworkScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, netMap)
+			testBackscatterTCP(ipSrc, backscatterMap)
 			/*
 				type TCP struct {
 				BaseLayer
@@ -104,6 +192,8 @@ func main() {
 		//i += 1
 		//if (i == 4) {break}
 	}
+	printBackscatterStats(backscatterMap)
+	printNetScanStats(netMap)
 }
 
 /*
