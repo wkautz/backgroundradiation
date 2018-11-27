@@ -53,7 +53,7 @@ func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netM
 }
 
 func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[net_pair]map[layers.TCPPort]int) bool {
-	//type, code = 8, 0 else return false
+	//if type != 8 || code != 0 {return false}
 	pair := net_pair{srcIP, dstPort}
 	netMap[pair][dstIP]++
 	return true
