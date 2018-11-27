@@ -14,7 +14,7 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-var portScanMap map[]
+var portScanMap map[pair(dstIP, srcIP)]map[PortNum]numHits
 
 var (
 	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
@@ -78,7 +78,9 @@ func main() {
 
 			dstPort = tcp.DstPort
 
-			testPortScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.SYN)
+			if testPortScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.SYN) {
+				portScanMap[tuple(ipSrc, ipDst)][dstPort] += 1
+			}
 			/*
 				type TCP struct {
 				BaseLayer
