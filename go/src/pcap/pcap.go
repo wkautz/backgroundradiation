@@ -7,11 +7,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 )
+
+var portScanMap map[]
 
 var (
 	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
@@ -19,6 +22,12 @@ var (
 	handle   *pcap.Handle
 	err      error
 )
+
+// IPSrc, IPDst, Port #, Scan Flag present, ...
+func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
+
+	return true
+}
 
 func main() {
 	// Open file instead of device
@@ -42,6 +51,8 @@ func main() {
 
 		//Get IPv4 Layer
 		ipLayer := packet.Layer(layers.LayerTypeIPv4)
+		var ipSrc net.IP
+		var ipDst net.IP
 		if ipLayer != nil {
 			fmt.Println("IPv4 Layer Detected.")
 			ip, _ := ipLayer.(*layers.IPv4)
@@ -56,6 +67,36 @@ func main() {
 			fmt.Printf("Protocol: %s\n", ip.Protocol)
 
 			println()
+		}
+
+		var dstPort layers.TCPPort
+
+		tcpLayer := packet.Layer(layers.LayerTypeTCP)
+		if tcpLayer != nil {
+			fmt.Println("IPv4 Layer Detected.")
+			tcp, _ := tcpLayer.(*layers.TCP)
+
+			dstPort = tcp.DstPort
+
+			testPortScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.SYN)
+			/*
+				type TCP struct {
+				BaseLayer
+				SrcPort, DstPort                           TCPPort
+				Seq                                        uint32
+				Ack                                        uint32
+				DataOffset                                 uint8
+				FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS bool
+				Window                                     uint16
+				Checksum                                   uint16
+				Urgent                                     uint16
+				sPort, dPort                               []byte
+				Options                                    []TCPOption
+				Padding                                    []byte
+				opts                                       [4]TCPOption
+				tcpipchecksum
+			*/
+
 		}
 
 		//i += 1
