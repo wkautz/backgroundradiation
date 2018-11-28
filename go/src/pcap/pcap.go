@@ -14,8 +14,6 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-var portScanMap map[pair(dstIP, srcIP)]map[PortNum]numHits
-
 var (
 	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
 	pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
@@ -23,43 +21,50 @@ var (
 	err      error
 )
 
-// IPSrc, IPDst, Port #, Scan Flag present, ...
-func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
-
-	return true
-}
-
-type net_pair struct {
-	sIP net.IP
+type netPair struct {
+	sIP   net.IP
 	dPort layers.TCPPort
 }
 
-var netMap map[net_pair]map[layers.TCPPort]int
+type ipPair struct {
+	srcIP net.IP
+	dstIP net.IP
+}
+
+var portMap map[ipPair]map[layers.TCPPort]int //Do we need another for UDP ports?
+var netMap map[netPair]map[layers.TCPPort]int
 var backscatterMap map[net.IP]int
 
+/* ===================== Port Scans ====================== */
+func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[ipPair]map[layers.TCPPort]int) bool {
+
+}
+
 /* =================== Network Scans ==================== */
-
-func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, netMap map[net_pair]map[layers.TCPPort]int) bool {
-	if !FIN && !ACK { return false }
-	pair := net_pair{srcIP, dstPort}
+//pull out features of UDP and TCP packets
+func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, netMap map[netPair]map[layers.TCPPort]int) bool {
+	if !FIN && !ACK {
+		return false
+	}
+	pair := netPair{srcIP, dstPort}
 	netMap[pair][dstIP]++
 	return true
 }
 
-func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[net_pair]map[layers.TCPPort]int) bool {
-	pair := net_pair{srcIP, dstPort}
+func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort, netMap map[netPair]map[layers.TCPPort]int) bool {
+	pair := netPair{srcIP, dstPort}
 	netMap[pair][dstIP]++
 	return true
 }
 
-func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[net_pair]map[layers.TCPPort]int) bool {
+func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[netPair]map[layers.TCPPort]int) bool {
 	//if type != 8 || code != 0 {return false}
-	pair := net_pair{srcIP, dstPort}
+	pair := netPair{srcIP, dstPort}
 	netMap[pair][dstIP]++
 	return true
 }
 
-func printNetScanStats(netMap map[net_pair]map[layers.TCPPort]int) bool {
+func printNetScanStats(netMap map[netPair]map[layers.TCPPort]int) bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
 	for k, v := range netMap {
 		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", k.sIP, k.dPort) //can we print this way?
@@ -89,7 +94,6 @@ func testBackscatterUDP(srcIP net.IP, backMap map[net.IP]int) bool {
 	return true
 }
 
-
 //TODO: NEED TO PASS IN CODE AND TYPE FOR ICMP
 func testBackscatterICMP(srcIP net.IP, backMap map[net.IP]int) bool {
 	/*if code != 0 || type != 0 {
@@ -114,7 +118,7 @@ func printBackscatterStats(backMap map[net.IP]int) bool {
 /* ========================= Main Loop ========================== */
 
 func main() {
-	netMap = make(map[net_pair]map[layers.TCPPort]int)
+	netMap = make(map[netPair]map[layers.TCPPort]int)
 	backscatterMap = make(map[net.IP]int)
 	// Open file instead of device
 	handle, err = pcap.OpenOffline(pcapFile)
@@ -155,18 +159,14 @@ func main() {
 			println()
 		}
 
-		var dstPort layers.TCPPort
-
 		tcpLayer := packet.Layer(layers.LayerTypeTCP)
 		if tcpLayer != nil {
-			fmt.Println("IPv4 Layer Detected.")
+			fmt.Println("TCP Layer Detected.")
 			tcp, _ := tcpLayer.(*layers.TCP)
 
-			dstPort = tcp.DstPort
+			var dstTCPPort = tcp.DstPort
 
-			if testPortScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.SYN) {
-				portScanMap[tuple(ipSrc, ipDst)][dstPort] += 1
-			}
+			testPortScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, portMap)
 			testNetworkScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, netMap)
 			testBackscatterTCP(ipSrc, backscatterMap)
 			/*
@@ -187,6 +187,19 @@ func main() {
 				tcpipchecksum
 			*/
 
+		}
+
+		udpLayer := packet.Layer(layers.LayerTypeUDP)
+		if udpLayer != nil {
+			fmt.Println("UDP layer detected.")
+
+			udp, _ := udpLayer.(*layers.UDP)
+
+			var dstUDPPort
+
+			testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, portMap)
+			testNetworkScanUDP(ipSrc, ipDst, dstUDPPort, tcp.FIN, tcp.ACK, netMap)
+			testBackscatterUDP(ipSrc, backscatterMap)
 		}
 
 		//i += 1
