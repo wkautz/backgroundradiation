@@ -5,6 +5,7 @@ package main
 // or use the example above for writing pcap files
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net"
@@ -35,9 +36,16 @@ var portMap map[ipPair]map[layers.TCPPort]int //Do we need another for UDP ports
 var netMap map[netPair]map[layers.TCPPort]int
 var backscatterMap map[net.IP]int
 
+func (p1 ipPair) Equal(p2 ipPair) bool {
+	if bytes.Equal(p1.srcIP, p2.srcIP) && bytes.Equal(p1.dstIP, p2.dstIP) {
+		return true
+	}
+	return false
+}
+
 /* ===================== Port Scans ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[ipPair]map[layers.TCPPort]int) bool {
-
+	return true
 }
 
 /* =================== Network Scans ==================== */
@@ -51,11 +59,11 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
 	return true
 }
 
-func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort, netMap map[netPair]map[layers.TCPPort]int) bool {
+/*func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort, netMap map[netPair]map[layers.UDPPort]int) bool {
 	pair := netPair{srcIP, dstPort}
 	netMap[pair][dstIP]++
 	return true
-}
+}*/
 
 func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[netPair]map[layers.TCPPort]int) bool {
 	//if type != 8 || code != 0 {return false}
@@ -166,8 +174,8 @@ func main() {
 
 			var dstTCPPort = tcp.DstPort
 
-			testPortScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, portMap)
-			testNetworkScanTCP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, netMap)
+			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, portMap)
+			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, netMap)
 			testBackscatterTCP(ipSrc, backscatterMap)
 			/*
 				type TCP struct {
@@ -195,10 +203,10 @@ func main() {
 
 			udp, _ := udpLayer.(*layers.UDP)
 
-			var dstUDPPort
+			var dstUDPPort udp.DstPort
 
-			testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, portMap)
-			testNetworkScanUDP(ipSrc, ipDst, dstUDPPort, tcp.FIN, tcp.ACK, netMap)
+			//testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, portMap)
+			//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort, netMap)
 			testBackscatterUDP(ipSrc, backscatterMap)
 		}
 
