@@ -1,15 +1,11 @@
 package main
 
-// Use tcpdump to create a test file
-// tcpdump -w test.pcap
-// or use the example above for writing pcap files
-
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
+	"strings"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -24,22 +20,25 @@ var (
 	count    int
 )
 
-type packetInfo struct {
-	srcIP net.IP
-	dstIP net.IP
-	dPort uint16
+func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
+	return string(srcIP) + ";" + string(dstIP) + ";" + string(dPort)
 }
 
-var portMap map[*packetInfo]map[uint16]int //Do we need another for UDP ports?
-var netMap map[*packetInfo]map[uint16]int
+func getSrcIP(packetInfo string) string {
+	return strings.Split(packetInfo, ";")[0]
+}
+
+func getDstIP(packetInfo string) string {
+	return strings.Split(packetInfo, ";")[1]
+}
+
+func getDPortIP(packetInfo string) string {
+	return strings.Split(packetInfo, ";")[2]
+}
+
+var portMap map[string]map[uint16]int //Do we need another for UDP ports?
+var netMap map[string]map[uint16]int
 var backscatterMap map[uint16]int
-
-func (p1 *packetInfo) Equal(p2 *packetInfo) bool {
-	if bytes.Equal(p1.srcIP, p2.srcIP) && bytes.Equal(p1.dstIP, p2.dstIP) && p1.dPort == p2.dPort {
-		return true
-	}
-	return false
-}
 
 /* ===================== Port Scans & One Flow ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
@@ -54,28 +53,28 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	if !FIN && !ACK {
 		return false
 	}
-	pair := packetInfo{srcIP, dstIP, 0}
+	packetInfo := stringify(srcIP, dstIP, 0)
 
-	if portMap[&pair] == nil {
+	if portMap[packetInfo] == nil {
 		m := make(map[uint16]int)
 		m[uint16(dstPort)] = 1
-		portMap[&pair] = m
+		portMap[packetInfo] = m
 	} else {
-		portMap[&pair][uint16(dstPort)]++
+		portMap[packetInfo][uint16(dstPort)]++
 	}
 	return true
 }
 func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
 	//any UDP checks would go here
-	pair := packetInfo{srcIP, dstIP, 0}
-	portMap[&pair][uint16(dstPort)]++
+	packetInfo := stringify(srcIP, dstIP, 0)
+	portMap[packetInfo][uint16(dstPort)]++
 	return true
 }
 
 func printPortScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(portMap))
 	for k, v := range portMap {
-		fmt.Printf("SrcIP, DestIP Pair: (%d, %d)\n", k.srcIP, k.dstIP) //can we print this way?
+		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
 		fmt.Printf("\t Has %d dPorts.\n", len(v))
 		countPackets := 0
 		for _, v1 := range v {
@@ -102,34 +101,34 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
 		return false
 	}
 	//fmt.Println("NETWORK SCAN = TRUE")
-	pair := packetInfo{srcIP, nil, uint16(dstPort)}
-	if netMap[&pair] == nil {
+	packetInfo := stringify(srcIP, nil, uint16(dstPort))
+	if netMap[packetInfo] == nil {
 		m := make(map[uint16]int)
 		m[binary.LittleEndian.Uint16(dstIP)] = 1
-		netMap[&pair] = m
+		netMap[packetInfo] = m
 	} else {
-		netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
+		netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
 	}
 	return true
 }
 
 func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort) bool {
-	pair := packetInfo{srcIP, nil, uint16(dstPort)}
-	netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
+	packetInfo := stringify(srcIP, nil, uint16(dstPort))
+	netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
 	return true
 }
 
 func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) bool {
 	//if type != 8 || code != 0 {return false}
-	pair := packetInfo{srcIP, nil, uint16(dstPort)}
-	netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
+	packetInfo := stringify(srcIP, nil, uint16(dstPort))
+	netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
 	return true
 }
 
 func printNetScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
 	for k, v := range netMap {
-		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", k.srcIP, k.dstIP) //can we print this way?
+		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
 		fmt.Printf("\t Has %d ipDsts.\n", len(v))
 		count := 0
 		for _, v1 := range v {
@@ -173,7 +172,7 @@ func testBackscatterICMP(srcIP net.IP) bool {
 func printBackscatterStats() bool {
 	fmt.Printf("Number of backscatters: %d\n", len(backscatterMap))
 	for k, v := range backscatterMap {
-		fmt.Printf("ipSrc: %s sent %d packets\n", k, v)
+		fmt.Printf("ipSrc: %d sent %d packets\n", k, v)
 	}
 	return true
 }
@@ -182,8 +181,8 @@ func printBackscatterStats() bool {
 
 func main() {
 	count = 0
-	netMap = make(map[*packetInfo]map[uint16]int)
-	portMap = make(map[*packetInfo]map[uint16]int)
+	netMap = make(map[string]map[uint16]int)
+	portMap = make(map[string]map[uint16]int)
 	backscatterMap = make(map[uint16]int)
 	// Open file instead of device
 	handle, err = pcap.OpenOffline(pcapFile)
