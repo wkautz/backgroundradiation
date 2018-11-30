@@ -44,19 +44,61 @@ func (p1 *packetInfo) Equal(p2 *packetInfo) bool {
 	return false
 }
 
-/* ===================== Port Scans ====================== */
+/* ===================== Port Scans & One Flow ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[*packetInfo]map[uint16]int) bool {
+	if !FIN && !ACK {
+		return false
+	}
+	pair := packetInfo{srcIP, dstIP, 0}
+
+	if portMap[&pair] == nil {
+		m := make(map[uint16]int)
+		m[uint16(dstPort)] = 0
+		portMap[&pair] = m
+	} else {
+		portMap[&pair][uint16(dstPort)]++
+	}
+	return true
+}
+func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[*packetInfo]map[uint16]int) bool {
+	//any UDP checks would go here
+	pair := packetInfo{srcIP, dstIP, 0}
+	portMap[&pair][uint16(dstPort)]++
+	return true
+}
+
+func printPortScanStats(portMap map[*packetInfo]map[layers.TCPPort]int) bool {
+	fmt.Printf("Number of PossibleScanners: %d\n", len(portMap))
+	for k, v := range portMap {
+		fmt.Printf("SrcIP, DestIP Pair: (%d, %d)\n", k.srcIP, k.dPort) //can we print this way?
+		fmt.Printf("\t Has %d ipDsts.\n", len(v))
+		count := 0
+		for _, v1 := range v {
+			count += v1
+		}
+		fmt.Printf("\t and %d packets\n", count)
+	}
 	return true
 }
 
 /* =================== Network Scans ==================== */
 //pull out features of UDP and TCP packets
 func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, netMap map[*packetInfo]map[uint16]int) bool {
+	//fmt.Printf("FIN: %t\n", FIN)
+	//fmt.Printf("ACK: %t\n", ACK)
 	if !FIN && !ACK {
+		//fmt.Println("NETWORK SCAN = FALSE")
 		return false
 	}
+	//fmt.Println("NETWORK SCAN = TRUE")
 	pair := packetInfo{srcIP, nil, uint16(dstPort)}
-	netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
+	if netMap[&pair] == nil {
+		m := make(map[uint16]int)
+		m[binary.LittleEndian.Uint16(dstIP)] = 0
+		netMap[&pair] = m
+	} else {
+		netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
+	}
 	return true
 }
 
@@ -92,6 +134,7 @@ func printNetScanStats(netMap map[*packetInfo]map[uint16]int) bool {
 func testBackscatterTCP(srcIP net.IP, backMap map[uint16]int) bool {
 	//must pass the flags into this method and check here
 	//only accept: SA, A, R, RA
+	fmt.Println(srcIP)
 	backMap[binary.LittleEndian.Uint16(srcIP)]++
 	return true
 }
@@ -142,19 +185,19 @@ func main() {
 	//var(i int = 0)
 	for packet := range packetSource.Packets() {
 
-		fmt.Println("======PACKET LAYERS======")
-		for _, layer := range packet.Layers() {
-			fmt.Println(layer.LayerType())
-		}
+		//fmt.Println("======PACKET LAYERS======")
+		/*for _, layer := range packet.Layers() {
+			//fmt.Println(layer.LayerType())
+		}*/
 
-		fmt.Println("=====================")
+		//fmt.Println("=====================")
 
 		//Get IPv4 Layer
 		ipLayer := packet.Layer(layers.LayerTypeIPv4)
 		var ipSrc net.IP
 		var ipDst net.IP
 		if ipLayer != nil {
-			fmt.Println("IPv4 Layer Detected.")
+			//fmt.Println("IPv4 Layer Detected.")
 			ip, _ := ipLayer.(*layers.IPv4)
 
 			//IP layer variables:
@@ -162,23 +205,28 @@ func main() {
 			//IHL (IP Header Length in 32-bit words)
 			//TOS, Length, ID, Flages, FragOffset, TTL, Protocol (TCP?, etc.),
 			//Checksum, SrcIP, DstIP
-			fmt.Printf("Source IP: %s\n", ip.SrcIP)
-			fmt.Printf("Destin IP: %s\n", ip.DstIP)
-			fmt.Printf("Protocol: %s\n", ip.Protocol)
+			//fmt.Printf("Source IP: %s\n", ip.SrcIP)
+			//fmt.Printf("Destin IP: %s\n", ip.DstIP)
+			//fmt.Printf("Protocol: %s\n", ip.Protocol)
 
-			println()
+			ipSrc = ip.SrcIP
+			ipDst = ip.DstIP
 		}
 
 		tcpLayer := packet.Layer(layers.LayerTypeTCP)
 		if tcpLayer != nil {
-			fmt.Println("TCP Layer Detected.")
+			//fmt.Println("TCP Layer Detected.")
 			tcp, _ := tcpLayer.(*layers.TCP)
 
 			var dstTCPPort = tcp.DstPort
 
 			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, portMap)
-			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, netMap)
-			testBackscatterTCP(ipSrc, backscatterMap)
+			//fmt.Println("==================================")
+			//fmt.Println("Testing for network scan")
+			//testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, netMap)
+			//fmt.Println("Done testing network scan")
+			//fmt.Println("==================================")
+			//testBackscatterTCP(ipSrc, backscatterMap)
 			/*
 				type TCP struct {
 				BaseLayer
@@ -199,7 +247,7 @@ func main() {
 
 		}
 
-		udpLayer := packet.Layer(layers.LayerTypeUDP)
+		/*udpLayer := packet.Layer(layers.LayerTypeUDP)
 		if udpLayer != nil {
 			fmt.Println("UDP layer detected.")
 
@@ -210,12 +258,12 @@ func main() {
 			//testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, portMap)
 			testNetworkScanUDP(ipSrc, ipDst, dstUDPPort, netMap)
 			testBackscatterUDP(ipSrc, backscatterMap)
-		}
+		}*/
 
 		//i += 1
 		//if (i == 4) {break}
 	}
-	printBackscatterStats(backscatterMap)
+	//printBackscatterStats(backscatterMap)
 	printNetScanStats(netMap)
 }
 
