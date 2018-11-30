@@ -32,11 +32,15 @@ type ipPair struct {
 	dstIP net.IP
 }
 
-var portMap map[ipPair]map[layers.TCPPort]int //Do we need another for UDP ports?
-var netMap map[netPair]map[layers.TCPPort]int
+var portMap map[*ipPair]map[layers.TCPPort]int //Do we need another for UDP ports?
+var netMap map[*netPair]map[net.IP]int
 var backscatterMap map[net.IP]int
 
-func (p1 ipPair) Equal(p2 ipPair) bool {
+/*func (p1 ipPair) Less(p2 ipPair) bool {
+	return false
+}*/
+
+func (p1 *ipPair) Equal(p2 *ipPair) bool {
 	if bytes.Equal(p1.srcIP, p2.srcIP) && bytes.Equal(p1.dstIP, p2.dstIP) {
 		return true
 	}
@@ -44,35 +48,35 @@ func (p1 ipPair) Equal(p2 ipPair) bool {
 }
 
 /* ===================== Port Scans ====================== */
-func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[ipPair]map[layers.TCPPort]int) bool {
+func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[*ipPair]map[layers.TCPPort]int) bool {
 	return true
 }
 
 /* =================== Network Scans ==================== */
 //pull out features of UDP and TCP packets
-func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, netMap map[netPair]map[layers.TCPPort]int) bool {
+func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, netMap map[*netPair]map[net.IP]int) bool {
 	if !FIN && !ACK {
 		return false
 	}
 	pair := netPair{srcIP, dstPort}
-	netMap[pair][dstIP]++
+	netMap[&pair][dstIP]++
 	return true
 }
 
-/*func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort, netMap map[netPair]map[layers.UDPPort]int) bool {
+func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort, netMap map[*netPair]map[net.IP]int) bool {
 	pair := netPair{srcIP, dstPort}
-	netMap[pair][dstIP]++
+	netMap[&pair][dstIP]++
 	return true
-}*/
+}
 
-func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[netPair]map[layers.TCPPort]int) bool {
+func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[*netPair]map[net.IP]int) bool {
 	//if type != 8 || code != 0 {return false}
 	pair := netPair{srcIP, dstPort}
-	netMap[pair][dstIP]++
+	netMap[&pair][dstIP]++
 	return true
 }
 
-func printNetScanStats(netMap map[netPair]map[layers.TCPPort]int) bool {
+func printNetScanStats(netMap map[*netPair]map[net.IP]int) bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
 	for k, v := range netMap {
 		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", k.sIP, k.dPort) //can we print this way?
@@ -126,7 +130,8 @@ func printBackscatterStats(backMap map[net.IP]int) bool {
 /* ========================= Main Loop ========================== */
 
 func main() {
-	netMap = make(map[netPair]map[layers.TCPPort]int)
+	netMap = make(map[*netPair]map[net.IP]int)
+	portMap = make(map[*ipPair]map[layers.TCPPort]int)
 	backscatterMap = make(map[net.IP]int)
 	// Open file instead of device
 	handle, err = pcap.OpenOffline(pcapFile)
