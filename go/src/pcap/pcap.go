@@ -43,10 +43,34 @@ func (p1 ipPair) Equal(p2 ipPair) bool {
 	return false
 }
 
-/* ===================== Port Scans ====================== */
+/* ===================== Port Scans & One Flow ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[ipPair]map[layers.TCPPort]int) bool {
-	return true
+        if !FIN && !ACK {return false}
+	pair := ipPair{srcIP, dstIp}
+        portMap[pair][dstPort]++
+        return true
 }
+func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[ipPair]map[layers.TCPPort]int) bool {
+        //any UDP checks would go here
+        pair := ipPair{srcIP, dstIp}
+        portMap[pair][dstPort]++
+        return true
+}
+
+func printPortScanStats(portMap map[ipPair]map[layers.TCPPort]int) bool {
+        fmt.Printf("Number of PossibleScanners: %d\n", len(portMap))
+        for k, v := range portMap {
+                fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", k.sIP, k.dPort) //can we print this way?
+                fmt.Printf("\t Has %d ipDsts.\n", len(v))
+                count := 0
+                for k1, v1 := range v {
+                        count += v1
+                }
+                fmt.Printf("\t and %d packets\n", count)
+        }
+        return true
+}
+
 
 /* =================== Network Scans ==================== */
 //pull out features of UDP and TCP packets
