@@ -21,6 +21,7 @@ var (
 	pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
 	handle   *pcap.Handle
 	err      error
+	count    int
 )
 
 type packetInfo struct {
@@ -33,19 +34,23 @@ var portMap map[*packetInfo]map[uint16]int //Do we need another for UDP ports?
 var netMap map[*packetInfo]map[uint16]int
 var backscatterMap map[uint16]int
 
-/*func (p1 packetInfo) Less(p2 packetInfo) bool {
-	return false
-}*/
-
 func (p1 *packetInfo) Equal(p2 *packetInfo) bool {
-	if bytes.Equal(p1.srcIP, p2.srcIP) && bytes.Equal(p1.dstIP, p2.dstIP) {
+	if bytes.Equal(p1.srcIP, p2.srcIP) && bytes.Equal(p1.dstIP, p2.dstIP) && p1.dPort == p2.dPort {
 		return true
 	}
 	return false
 }
 
 /* ===================== Port Scans & One Flow ====================== */
-func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[*packetInfo]map[uint16]int) bool {
+func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
+
+	count++
+	//fmt.Printf("FIN: %t\n", FIN)
+	//fmt.Printf("ACK: %t\n", ACK)
+
+	if count%1000000 == 0 {
+		fmt.Printf("%d packets\n", count)
+	}
 	if !FIN && !ACK {
 		return false
 	}
@@ -53,39 +58,45 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 
 	if portMap[&pair] == nil {
 		m := make(map[uint16]int)
-		m[uint16(dstPort)] = 0
+		m[uint16(dstPort)] = 1
 		portMap[&pair] = m
 	} else {
 		portMap[&pair][uint16(dstPort)]++
 	}
 	return true
 }
-func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, portMap map[*packetInfo]map[uint16]int) bool {
+func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
 	//any UDP checks would go here
 	pair := packetInfo{srcIP, dstIP, 0}
 	portMap[&pair][uint16(dstPort)]++
 	return true
 }
 
-func printPortScanStats(portMap map[*packetInfo]map[layers.TCPPort]int) bool {
+func printPortScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(portMap))
 	for k, v := range portMap {
-		fmt.Printf("SrcIP, DestIP Pair: (%d, %d)\n", k.srcIP, k.dPort) //can we print this way?
-		fmt.Printf("\t Has %d ipDsts.\n", len(v))
-		count := 0
+		fmt.Printf("SrcIP, DestIP Pair: (%d, %d)\n", k.srcIP, k.dstIP) //can we print this way?
+		fmt.Printf("\t Has %d dPorts.\n", len(v))
+		countPackets := 0
 		for _, v1 := range v {
-			count += v1
+			countPackets += v1
 		}
-		fmt.Printf("\t and %d packets\n", count)
+		fmt.Printf("\t and %d packets\n", countPackets)
 	}
 	return true
 }
 
 /* =================== Network Scans ==================== */
 //pull out features of UDP and TCP packets
-func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, netMap map[*packetInfo]map[uint16]int) bool {
+func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
+	count++
 	//fmt.Printf("FIN: %t\n", FIN)
 	//fmt.Printf("ACK: %t\n", ACK)
+
+	if count%1000000 == 0 {
+		fmt.Printf("%d packets\n", count)
+	}
+
 	if !FIN && !ACK {
 		//fmt.Println("NETWORK SCAN = FALSE")
 		return false
@@ -94,7 +105,7 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
 	pair := packetInfo{srcIP, nil, uint16(dstPort)}
 	if netMap[&pair] == nil {
 		m := make(map[uint16]int)
-		m[binary.LittleEndian.Uint16(dstIP)] = 0
+		m[binary.LittleEndian.Uint16(dstIP)] = 1
 		netMap[&pair] = m
 	} else {
 		netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
@@ -102,20 +113,20 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
 	return true
 }
 
-func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort, netMap map[*packetInfo]map[uint16]int) bool {
+func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort) bool {
 	pair := packetInfo{srcIP, nil, uint16(dstPort)}
 	netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
 	return true
 }
 
-func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, netMap map[*packetInfo]map[uint16]int) bool {
+func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) bool {
 	//if type != 8 || code != 0 {return false}
 	pair := packetInfo{srcIP, nil, uint16(dstPort)}
 	netMap[&pair][binary.LittleEndian.Uint16(dstIP)]++
 	return true
 }
 
-func printNetScanStats(netMap map[*packetInfo]map[uint16]int) bool {
+func printNetScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
 	for k, v := range netMap {
 		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", k.srcIP, k.dstIP) //can we print this way?
@@ -131,23 +142,23 @@ func printNetScanStats(netMap map[*packetInfo]map[uint16]int) bool {
 
 /* ==================== Backscatter ========================= */
 
-func testBackscatterTCP(srcIP net.IP, backMap map[uint16]int) bool {
+func testBackscatterTCP(srcIP net.IP) bool {
 	//must pass the flags into this method and check here
 	//only accept: SA, A, R, RA
 	fmt.Println(srcIP)
-	backMap[binary.LittleEndian.Uint16(srcIP)]++
+	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
 	return true
 }
 
 //TODO: NEED TO PASS IN PORTSRC
-func testBackscatterUDP(srcIP net.IP, backMap map[uint16]int) bool {
+func testBackscatterUDP(srcIP net.IP) bool {
 	//if portSrc != 53 && portSrc != 123 && portSrc != 137 && portSrc != 161 { return false }
-	backMap[binary.LittleEndian.Uint16(srcIP)]++
+	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
 	return true
 }
 
 //TODO: NEED TO PASS IN CODE AND TYPE FOR ICMP
-func testBackscatterICMP(srcIP net.IP, backMap map[uint16]int) bool {
+func testBackscatterICMP(srcIP net.IP) bool {
 	/*if code != 0 || type != 0 {
 		if code != 0 || type != 11 {
 			if type != 3 {
@@ -155,13 +166,13 @@ func testBackscatterICMP(srcIP net.IP, backMap map[uint16]int) bool {
 			}
 		}
 	}*/
-	backMap[binary.LittleEndian.Uint16(srcIP)]++
+	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
 	return true
 }
 
-func printBackscatterStats(backMap map[uint16]int) bool {
-	fmt.Printf("Number of backscatters: %d\n", len(backMap))
-	for k, v := range backMap {
+func printBackscatterStats() bool {
+	fmt.Printf("Number of backscatters: %d\n", len(backscatterMap))
+	for k, v := range backscatterMap {
 		fmt.Printf("ipSrc: %s sent %d packets\n", k, v)
 	}
 	return true
@@ -170,6 +181,7 @@ func printBackscatterStats(backMap map[uint16]int) bool {
 /* ========================= Main Loop ========================== */
 
 func main() {
+	count = 0
 	netMap = make(map[*packetInfo]map[uint16]int)
 	portMap = make(map[*packetInfo]map[uint16]int)
 	backscatterMap = make(map[uint16]int)
@@ -220,10 +232,10 @@ func main() {
 
 			var dstTCPPort = tcp.DstPort
 
-			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, portMap)
+			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
 			//fmt.Println("==================================")
 			//fmt.Println("Testing for network scan")
-			//testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, netMap)
+			//testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
 			//fmt.Println("Done testing network scan")
 			//fmt.Println("==================================")
 			//testBackscatterTCP(ipSrc, backscatterMap)
@@ -255,16 +267,16 @@ func main() {
 
 			dstUDPPort := udp.DstPort
 
-			//testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK, portMap)
-			testNetworkScanUDP(ipSrc, ipDst, dstUDPPort, netMap)
-			testBackscatterUDP(ipSrc, backscatterMap)
+			//testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK)
+			testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
+			testBackscatterUDP(ipSrc)
 		}*/
 
 		//i += 1
 		//if (i == 4) {break}
 	}
-	//printBackscatterStats(backscatterMap)
-	printNetScanStats(netMap)
+	//printBackscatterStats()
+	printPortScanStats()
 }
 
 /*
