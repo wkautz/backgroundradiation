@@ -10,6 +10,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+        //"github.com/fatih/set"
 )
 
 var (
@@ -19,7 +20,11 @@ var (
 	err      error
 	count    int
 )
-
+/*
+func stringifyNot(srcIP net.IP, dstIP net.IP, dPort uint16, ...) string {
+        return string(srcIP) + ";" + string(dstIP) + ";" + string(dPort)
+}
+*/
 func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
 	return string(srcIP) + ";" + string(dstIP) + ";" + string(dPort)
 }
@@ -276,6 +281,51 @@ func main() {
 	}
 	//printBackscatterStats()
 	printPortScanStats()
+        //printNetworkScanStats()
+        /*
+        nonPortScan := set.New(set.NonThreadSafe)
+        nonNetworkScan := set.New(set.NonThreadSafe)
+        nonBackscatter := set.New(set.NonThreadSafe)
+        /* Filter Port */
+        for k, v := range portMap {
+            if len(v) < PORT_SCAN_CUTOFF {
+               for key, val := range v {
+                   //create packet info with key, val
+                   //newPacketInfo := stringifyNon(...)
+                   nonPortScan.Add(newPacketInfo)
+                }
+            }
+        }
+        /* Network Scan Filter */
+        for k, v := range networkMap {
+            if len(v) < NET_SCAN_CUTOFF {
+               for key, val := range v {
+                   //could check networkscans
+                   //create packet info with key, val
+                   //newPacketInfo := stringifyNon(...)
+                   nonNetworkScan.Add(newPacketInfo)
+                }
+            }
+        }
+        /* Backscatter Filter */
+        for k, v := range backscatterMap {
+            if v < BACKSCATTER_CUTOFF {
+               //newPacketINfo := stringifyNon(...)
+               nonBackscatter.Add(newPacketInfo)
+            }
+        }
+        intermediate = set.Intersection(nonPortScan, nonNetworkScan)
+        finalSet = set.Intersection(intermediate, nonBackscatter)
+        f, err := os.Create("otherPacks.txt")
+        defer f.Close()
+        while (!finalSet.IsEmpty()) {
+            item := finalSet.Pop()
+            length, err := f.WriteString(item)
+            if length != len(item) {fmt.Println("BAD\n")}
+            length2, err2 := f.WriteString("\n")
+            if length2 != 1 {fmt.Println("BAD2\n")}
+        }
+        */
 }
 
 /*
