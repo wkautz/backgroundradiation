@@ -21,7 +21,7 @@ var (
 	count    int
 )
 /*
-func stringifyNot(srcIP net.IP, dstIP net.IP, dPort uint16, ...) string {
+func stringifyNot(srcIP net.IP, dstIP net.IP, dPort uint16) string { /* Can add any thing that is needed for analyzation */
         return string(srcIP) + ";" + string(dstIP) + ";" + string(dPort)
 }
 */
@@ -45,6 +45,8 @@ var portMap map[string]map[uint16]int //Do we need another for UDP ports?
 var netMap map[string]map[uint16]int
 var backscatterMap map[uint16]int
 
+//var backscatterMap map[uint16]map[string]int
+
 /* ===================== Port Scans & One Flow ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
 
@@ -55,7 +57,14 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	if count%1000000 == 0 {
 		fmt.Printf("%d packets\n", count)
 	}
-	if !FIN && !ACK {
+        /* Accept: (FINACK),(SYN), (FIN), (NULL)  */
+	/* if (FIN && ACK) || (SYN) || (FIN) {
+           //do nothing. I just didnt want to deal with the logic of
+           //trying to negate that
+        } else {
+          return false;
+        } */
+        if !FIN && !ACK {
 		return false
 	}
 	packetInfo := stringify(srcIP, dstIP, 0)
@@ -146,23 +155,47 @@ func printNetScanStats() bool {
 
 /* ==================== Backscatter ========================= */
 
-func testBackscatterTCP(srcIP net.IP) bool {
+func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	//must pass the flags into this method and check here
 	//only accept: SA, A, R, RA
 	fmt.Println(srcIP)
+        /*
+        packetInfo := stringify(0, dstIP, dPort)
+
+        if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
+                m := make(map[string]int)
+                m[packetInfo] = 1
+                portMap[binary.LittleEndian.Uint16(srcIP)] = m
+        } else {
+                portMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+        }
+        */
+        packetInfo := stringify(srcIP, dstIP, dPort)
 	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
 	return true
 }
 
 //TODO: NEED TO PASS IN PORTSRC
-func testBackscatterUDP(srcIP net.IP) bool {
+func testBackscatterUDP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	//if portSrc != 53 && portSrc != 123 && portSrc != 137 && portSrc != 161 { return false }
-	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
+	/*
+        packetInfo := stringify(0, dstIP, dPort)
+
+        if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
+                m := make(map[string]int)
+                m[packetInfo] = 1
+                portMap[binary.LittleEndian.Uint16(srcIP)] = m
+        } else {
+                portMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+        }
+        */
+        packetInfo := stringify(srcIP, dstIP, dPort)
+        backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
 	return true
 }
 
 //TODO: NEED TO PASS IN CODE AND TYPE FOR ICMP
-func testBackscatterICMP(srcIP net.IP) bool {
+func testBackscatterICMP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	/*if code != 0 || type != 0 {
 		if code != 0 || type != 11 {
 			if type != 3 {
@@ -170,6 +203,19 @@ func testBackscatterICMP(srcIP net.IP) bool {
 			}
 		}
 	}*/
+        /*
+        packetInfo := stringify(0, dstIP, dPort)
+
+        if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
+                m := make(map[string]int)
+                m[packetInfo] = 1
+                portMap[binary.LittleEndian.Uint16(srcIP)] = m
+        } else {
+                portMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+        }
+        */
+        packetInfo := stringify(srcIP, dstIP, dPort)
+        //change backscattermap to be from src to packetInfo
 	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
 	return true
 }
@@ -242,7 +288,7 @@ func main() {
 			//testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
 			//fmt.Println("Done testing network scan")
 			//fmt.Println("==================================")
-			//testBackscatterTCP(ipSrc, backscatterMap)
+			//testBackscatterTCP(ipSrc, ipDst, dstTCPPort)
 			/*
 				type TCP struct {
 				BaseLayer
@@ -291,8 +337,11 @@ func main() {
             if len(v) < PORT_SCAN_CUTOFF {
                for key, val := range v {
                    //create packet info with key, val
-                   //newPacketInfo := stringifyNon(...)
-                   nonPortScan.Add(newPacketInfo)
+                   portsrcIP = getSrcIP(k)
+                   portdestIP = getDstIP(k)
+                   portdestPort = key
+                   newPacketInfo := stringifyNot(portsrcIP, portdestPort, portdestPort)
+                   nonPortScan.Add(newPacketInfo) //does it need a type declared
                 }
             }
         }
@@ -301,8 +350,11 @@ func main() {
             if len(v) < NET_SCAN_CUTOFF {
                for key, val := range v {
                    //could check networkscans
+                   portsrcIP = getSrcIP(k)
+                   portdestIP = key
+                   portdestPort = getDPortIP(k)
                    //create packet info with key, val
-                   //newPacketInfo := stringifyNon(...)
+                   newPacketInfo := stringifyNot(portsrcIP, portdestPort, portdestPort)
                    nonNetworkScan.Add(newPacketInfo)
                 }
             }
@@ -310,6 +362,8 @@ func main() {
         /* Backscatter Filter */
         for k, v := range backscatterMap {
             if v < BACKSCATTER_CUTOFF {
+               //FIX THIS LOOP FOR NEW BACKSCATTER MAP
+               //loop through all the values and create newPacketInfo
                //newPacketINfo := stringifyNon(...)
                nonBackscatter.Add(newPacketInfo)
             }
@@ -327,31 +381,3 @@ func main() {
         }
         */
 }
-
-/*
-   PossibleOthers = Set<unique identifier>
-   portscan, oneflow: map<(src, dest), map<port, #packs in that port> >
-   networkscan: map<(ipsrc, portdest), map<ipdest, numpackets>>,
-   backscatter: map<ipsrc, numpackets(*with checks)>
-           checks: TCP: if flag is SA, A, R, RA
-                   UDP: if port == 53, 123, 137, 161
-                   ICMP: if (Type, code) = (0, 0), (11, 0) or Type == 3
-   TCP packets need to check for "scanflagpktratio"
-
-   Algorithm
-   for each packet:
-       create (ipsrc, ipdest), add to map
-       create (ipsrc, destport) add to map
-       add ipsrc to map (with checks)
-   for each key in port map:
-       check for conditions
-       if no conditions match, add to "PossibleOthers"
-   for each key in network map:
-       repeat
-   for each key backscatter map:
-       repeat
-
-
-   In each step we need to remove a packet from possibleOthers if it is classified
-   then we should have only nonclassified packets (with exception of small syns and small udps...)
-*/
