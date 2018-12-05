@@ -43,9 +43,9 @@ func getDPortIP(packetInfo string) string {
 
 var portMap map[string]map[uint16]int //Do we need another for UDP ports?
 var netMap map[string]map[uint16]int
-var backscatterMap map[uint16]int
+//var backscatterMap map[uint16]int
 
-//var backscatterMap map[uint16]map[string]int
+var backscatterMap map[uint16]map[string]int
 
 /* ===================== Port Scans & One Flow ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
@@ -159,7 +159,6 @@ func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	//must pass the flags into this method and check here
 	//only accept: SA, A, R, RA
 	fmt.Println(srcIP)
-        /*
         packetInfo := stringify(0, dstIP, dPort)
 
         if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
@@ -169,16 +168,15 @@ func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
         } else {
                 portMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
         }
-        */
+        /*
         packetInfo := stringify(srcIP, dstIP, dPort)
-	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
+	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++*/
 	return true
 }
 
 //TODO: NEED TO PASS IN PORTSRC
 func testBackscatterUDP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
-	//if portSrc != 53 && portSrc != 123 && portSrc != 137 && portSrc != 161 { return false }
-	/*
+	//if portSrc != 53 && portSrc != 123 && portSrc != 137 && portSrc != 161 { return false; }
         packetInfo := stringify(0, dstIP, dPort)
 
         if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
@@ -188,9 +186,9 @@ func testBackscatterUDP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
         } else {
                 portMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
         }
-        */
-        packetInfo := stringify(srcIP, dstIP, dPort)
-        backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
+
+        /*packetInfo := stringify(srcIP, dstIP, dPort)
+        backscatterMap[binary.LittleEndian.Uint16(srcIP)]++*/
 	return true
 }
 
@@ -203,7 +201,7 @@ func testBackscatterICMP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 			}
 		}
 	}*/
-        /*
+
         packetInfo := stringify(0, dstIP, dPort)
 
         if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
@@ -213,10 +211,10 @@ func testBackscatterICMP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
         } else {
                 portMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
         }
-        */
-        packetInfo := stringify(srcIP, dstIP, dPort)
+
+        /*packetInfo := stringify(srcIP, dstIP, dPort)
         //change backscattermap to be from src to packetInfo
-	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++
+	backscatterMap[binary.LittleEndian.Uint16(srcIP)]++*/
 	return true
 }
 
@@ -234,8 +232,9 @@ func main() {
 	count = 0
 	netMap = make(map[string]map[uint16]int)
 	portMap = make(map[string]map[uint16]int)
-	backscatterMap = make(map[uint16]int)
-	// Open file instead of device
+	//backscatterMap = make(map[uint16]int)
+	backscatterMap = make(map[uint16]map[string]int)
+        // Open file instead of device
 	handle, err = pcap.OpenOffline(pcapFile)
 	if err != nil {
 		log.Fatal(err)
@@ -362,15 +361,15 @@ func main() {
         /* Backscatter Filter */
         for k, v := range backscatterMap {
             //maybe write a count(v) function
-            if v < BACKSCATTER_CUTOFF {
+            if len(v) < BACKSCATTER_CUTOFF {
                //len(v) might not be right if you use multiple identical packets.
-               /*for key, val := range v {
+               for key, val := range v {
                    portsrcIP = k
                    portdestIP = getDstIP(key)
                    portdestPort = getDPortIP(key)
                    newPacketInfo := stringifyNot(portsrcIP, portdestPort, portdestPort)
                    nonBackscatter.Add(newPacketInfo)
-               }*/
+               }
                //nonBackscatter.Add(newPacketInfo)
             }
         }
@@ -385,5 +384,4 @@ func main() {
             length2, err2 := f.WriteString("\n")
             if length2 != 1 {fmt.Println("BAD2\n")}
         }
-        */
 }
