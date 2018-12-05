@@ -361,11 +361,17 @@ func main() {
         }
         /* Backscatter Filter */
         for k, v := range backscatterMap {
+            //maybe write a count(v) function
             if v < BACKSCATTER_CUTOFF {
-               //FIX THIS LOOP FOR NEW BACKSCATTER MAP
-               //loop through all the values and create newPacketInfo
-               //newPacketINfo := stringifyNon(...)
-               nonBackscatter.Add(newPacketInfo)
+               //len(v) might not be right if you use multiple identical packets.
+               /*for key, val := range v {
+                   portsrcIP = k
+                   portdestIP = getDstIP(key)
+                   portdestPort = getDPortIP(key)
+                   newPacketInfo := stringifyNot(portsrcIP, portdestPort, portdestPort)
+                   nonBackscatter.Add(newPacketInfo)
+               }*/
+               //nonBackscatter.Add(newPacketInfo)
             }
         }
         intermediate = set.Intersection(nonPortScan, nonNetworkScan)
