@@ -6,18 +6,19 @@ import (
 	"log"
 	"net"
 	"strings"
-        "os"
+        //"os"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-        "github.com/fatih/set"
+        //"github.com/fatih/set"
 )
 
 var (
 	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	handle   *pcap.Handle
+	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
+	pcapFile string = "/home/wkautz/pcap_file"
+        handle   *pcap.Handle
 	err      error
 	count    int
 )
@@ -49,7 +50,7 @@ var netMap map[string]map[uint16]int
 var backscatterMap map[uint16]map[string]int
 
 /* ===================== Port Scans & One Flow ====================== */
-func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
+func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool) bool {
 
 	count++
 	//fmt.Printf("FIN: %t\n", FIN)
@@ -59,15 +60,15 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 		fmt.Printf("%d packets\n", count)
 	}
         /* Accept: (FINACK),(SYN), (FIN), (NULL)  */
-	/* if (FIN && ACK) || (SYN) || (FIN) {
+	 if (FIN && ACK) || (SYN) || (FIN) {
            //do nothing. I just didnt want to deal with the logic of
            //trying to negate that
         } else {
           return false;
-        } */
-        if !FIN && !ACK {
+        }
+        /*if !FIN && !ACK {
 		return false
-	}
+	}*/
 	packetInfo := stringify(srcIP, dstIP, 0)
 
 	if portMap[packetInfo] == nil {
@@ -75,7 +76,8 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 		m[uint16(dstPort)] = 1
 		portMap[packetInfo] = m
 	} else {
-		portMap[packetInfo][uint16(dstPort)]++
+		//if it passes checks, just remove it here to save memory
+                portMap[packetInfo][uint16(dstPort)]++
 	}
 	return true
 }
@@ -159,7 +161,7 @@ func printNetScanStats() bool {
 func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	//must pass the flags into this method and check here
 	//only accept: SA, A, R, RA
-	fmt.Println(srcIP)
+	//fmt.Println(srcIP)
         packetInfo := stringify(srcIP, dstIP, dPort)
 
         if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
@@ -282,13 +284,13 @@ func main() {
 
 			var dstTCPPort = tcp.DstPort
 
-			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
+			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN)
 			//fmt.Println("==================================")
 			//fmt.Println("Testing for network scan")
 			//testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
 			//fmt.Println("Done testing network scan")
 			//fmt.Println("==================================")
-			//testBackscatterTCP(ipSrc, ipDst, dstTCPPort)
+			//testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort))
 			/*
 				type TCP struct {
 				BaseLayer
@@ -318,8 +320,8 @@ func main() {
 			dstUDPPort := udp.DstPort
 
 			//testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK)
-			testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
-			testBackscatterUDP(ipSrc)
+			//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
+			//testBackscatterUDP(ipSrc)
 		}*/
 
 		//i += 1
@@ -327,14 +329,14 @@ func main() {
 	}
 	//printBackscatterStats()
 	printPortScanStats()
-        //printNetworkScanStats()
-
+        //printNetScanStats()
+        /*
         nonPortScan := set.New(set.NonThreadSafe)
         nonNetworkScan := set.New(set.NonThreadSafe)
         nonBackscatter := set.New(set.NonThreadSafe)
-        /* Filter Port */
-        for k, v := range portMap {
-            if len(v) < 10/* PORT_SCAN_CUTOFF */ {
+        *//* Filter Port */
+        /*for k, v := range portMap {
+            if len(v) < 10 PORT_SCAN_CUTOFF  {
                for key, _ := range v {
                    //create packet info with key, val
                    portsrcIP := getSrcIP(k)
@@ -344,10 +346,10 @@ func main() {
                    nonPortScan.Add(newPacketInfo) //does it need a type declared
                 }
             }
-        }
+        }*/
         /* Network Scan Filter */
-        for k, v := range netMap {
-            if len(v) < 10/*NET_SCAN_CUTOFF*/ {
+        /*for k, v := range netMap {
+            if len(v) < 10 NET_SCAN_CUTOFF {
                for key, _ := range v {
                    //could check networkscans
                    portsrcIP := getSrcIP(k)
@@ -358,11 +360,11 @@ func main() {
                    nonNetworkScan.Add(newPacketInfo)
                 }
             }
-        }
+        }*/
         /* Backscatter Filter */
-        for k, v := range backscatterMap {
+        /*for k, v := range backscatterMap {
             //maybe write a count(v) function
-            if len(v) < 10/*BACKSCATTER_CUTOFF*/ {
+            if len(v) < 10 BACKSCATTER_CUTOFF {
                //len(v) might not be right if you use multiple identical packets.
                for key, _ := range v {
                    portsrcIP := k
@@ -384,5 +386,5 @@ func main() {
             if length != 0 {fmt.Println("MEH\n")}
             length2, _ := f.WriteString("\n")
             if length2 != 1 {fmt.Println("BAD2\n")}
-        }
+        } */
 }
