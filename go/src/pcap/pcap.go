@@ -44,6 +44,7 @@ func getDPortIP(packetInfo string) string {
 }
 
 var portMap map[string]map[uint16]int //Do we need another for UDP ports?
+var portMapUnique map[string]uint16
 var netMap map[string]map[uint16]int
 //var backscatterMap map[uint16]int
 
@@ -71,14 +72,26 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	}*/
 	packetInfo := stringify(srcIP, dstIP, 0)
 
-	if portMap[packetInfo] == nil {
-		m := make(map[uint16]int)
-		m[uint16(dstPort)] = 1
-		portMap[packetInfo] = m
-	} else {
-		//if it passes checks, just remove it here to save memory
-                portMap[packetInfo][uint16(dstPort)]++
-	}
+        //portMapUnique
+        if portMapUnique[packetInfo] == nil {
+           portMapUnique[packetInfo] = dstPort;
+        } else {
+
+          if portMap[packetInfo] == nil {
+		   m := make(map[uint16]int)
+		   m[uint16(dstPort)] = 1
+                   portMap[packetInfo] = m
+	           2dstPort := portMapUnique[packetInfo]
+                   if 2dstPort == dstPort {
+                      portMap[packetInfo][uint16(dstPort)]++
+                   } else {
+                      portMap[packetInfo][uint16(2dstPort)] = 1
+                   }
+          } else {
+                   //if it passes checks, just remove it here to save memory
+                   portMap[packetInfo][uint16(dstPort)]++
+	  }
+        }
 	return true
 }
 func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
