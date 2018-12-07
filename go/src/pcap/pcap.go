@@ -6,7 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
-
+        "strconv"
 	//"os"
 
 	"github.com/google/gopacket"
@@ -17,19 +17,33 @@ import (
 
 var (
 	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	//pcapFile string = "/home/wkautz/pcap_file"
+	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
+	pcapFile string = "/home/wkautz/pcap_file"
 	handle *pcap.Handle
 	err    error
 	count  int
 )
+
+func stringCounter(num uint16, count uint16) string{
+     countStr := strconv.Itoa(int(count))
+     return strconv.Itoa(int(num)) + ";" + countStr
+}
+
+func getData(thing string) string {
+     return strings.Split(thing, ";")[0]
+}
+
+func getCount(thing string) uint16 {
+     counter, _ := strconv.Atoi(strings.Split(thing, ";")[1])
+     return uint16(counter)
+}
 
 func stringifyNot(srcIP string, dstIP string, dPort string) string {
 	return srcIP + ";" + dstIP + ";" + dPort
 }
 
 func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
-	return string(srcIP) + ";" + string(dstIP) + ";" + string(dPort)
+	return strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))) + ";" + strconv.Itoa(int(binary.LittleEndian.Uint16(dstIP))) + ";" + strconv.Itoa(int(dPort))
 }
 
 func getSrcIP(packetInfo string) string {
@@ -45,23 +59,22 @@ func getDPortIP(packetInfo string) string {
 }
 
 var portMap map[string]map[uint16]int //Do we need another for UDP ports?
-var portMapUnique map[string]uint16
+var portMapUnique map[string]string
 var netMap map[string]map[uint16]int
+var netMapUnique map[string]uint16
+
 
 //var backscatterMap map[uint16]int
 
 var backscatterMap map[uint16]map[string]int
+var backscatterUnique map[uint16]string
 
 /* ===================== Port Scans & One Flow ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool) bool {
 
-	count++
 	//fmt.Printf("FIN: %t\n", FIN)
 	//fmt.Printf("ACK: %t\n", ACK)
 
-	if count%1000000 == 0 {
-		fmt.Printf("%d packets\n", count)
-	}
 	/* Accept: (FINACK),(SYN), (FIN), (NULL)  */
 	if (FIN && ACK) || (SYN) || (FIN) {
 		//do nothing. I just didnt want to deal with the logic of
@@ -75,24 +88,30 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	packetInfo := stringify(srcIP, dstIP, 0)
 
 	//portMapUnique
-	if portMapUnique[packetInfo] == 0 {
-		portMapUnique[packetInfo] = uint16(dstPort)
-	} else {
-
+	if portMapUnique[packetInfo] == "" {
+		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
+        //} else if (getData(portMapUnique[packetInfo]) == string(uint16(dstPort))) && (getCount(portMapUnique[packetInfo]) != 0) {
+        //       counter := getCount(portMapUnique[packetInfo])
+        //       counter++
+        //       portMapUnique[packetInfo] = stringCounter(uint16(dstPort), counter)
+        } else {
 		if portMap[packetInfo] == nil {
 			m := make(map[uint16]int)
 			m[uint16(dstPort)] = 1
 			portMap[packetInfo] = m
-			dstPort2 := portMapUnique[packetInfo]
-			if dstPort2 == uint16(dstPort) {
-				portMap[packetInfo][uint16(dstPort)]++
+                        dstPortInt, _ := strconv.Atoi(getData(portMapUnique[packetInfo]))
+			dstPort2 := uint16(dstPortInt)
+                        //numHits := int(getCount(portMapUnique[packetInfo]))
+                        if dstPort2 == uint16(dstPort) {
+				portMap[packetInfo][uint16(dstPort)] += 1//numHits
 			} else {
-				portMap[packetInfo][uint16(dstPort2)] = 1
+				portMap[packetInfo][uint16(dstPort2)] = 1//numHits
 			}
 		} else {
 			//if it passes checks, just remove it here to save memory
 			portMap[packetInfo][uint16(dstPort)]++
 		}
+                portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 0)
 	}
 	return true
 }
@@ -106,6 +125,7 @@ func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 func printPortScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(portMap))
 	for k, v := range portMap {
+            if len(v) >= 5 {
 		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
 		fmt.Printf("\t Has %d dPorts.\n", len(v))
 		countPackets := 0
@@ -113,20 +133,16 @@ func printPortScanStats() bool {
 			countPackets += v1
 		}
 		fmt.Printf("\t and %d packets\n", countPackets)
-	}
+	    }
+        }
 	return true
 }
 
 /* =================== Network Scans ==================== */
 //pull out features of UDP and TCP packets
 func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
-	count++
 	//fmt.Printf("FIN: %t\n", FIN)
 	//fmt.Printf("ACK: %t\n", ACK)
-
-	if count%1000000 == 0 {
-		fmt.Printf("%d packets\n", count)
-	}
 
 	if !FIN && !ACK {
 		//fmt.Println("NETWORK SCAN = FALSE")
@@ -134,13 +150,25 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
 	}
 	//fmt.Println("NETWORK SCAN = TRUE")
 	packetInfo := stringify(srcIP, nil, uint16(dstPort))
-	if netMap[packetInfo] == nil {
-		m := make(map[uint16]int)
-		m[binary.LittleEndian.Uint16(dstIP)] = 1
-		netMap[packetInfo] = m
-	} else {
-		netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
-	}
+	if netMapUnique[packetInfo] == 0 {
+                netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
+        } else {
+
+                if netMap[packetInfo] == nil {
+                        m := make(map[uint16]int)
+                        m[binary.LittleEndian.Uint16(dstIP)] = 1
+                        netMap[packetInfo] = m
+                        dstIP2 := netMapUnique[packetInfo]
+                        if dstIP2 == binary.LittleEndian.Uint16(dstIP) {
+                                netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+                        } else {
+                                netMap[packetInfo][dstIP2] = 1
+                        }
+                } else {
+                        //if it passes checks, just remove it here to save memory
+                        netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+                }
+        }
 	return true
 }
 
@@ -164,11 +192,11 @@ func printNetScanStats() bool {
 
 			fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
 			fmt.Printf("\t Has %d ipDsts.\n", len(v))
-			count := 0
+			counter := 0
 			for _, v1 := range v {
-				count += v1
+				counter += v1
 			}
-			fmt.Printf("\t and %d packets\n", count)
+			fmt.Printf("\t and %d packets\n", counter)
 
 		}
 	}
@@ -182,17 +210,24 @@ func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	//only accept: SA, A, R, RA
 	//fmt.Println(srcIP)
 	packetInfo := stringify(srcIP, dstIP, dPort)
+        if backscatterUnique[binary.LittleEndian.Uint16(srcIP)] == "" {
+                backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
+        } else {
 
-	if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
-		m := make(map[string]int)
-		m[packetInfo] = 1
-		backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
-	} else {
-		backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
-	}
-	/*
-	        packetInfo := stringify(srcIP, dstIP, dPort)
-		backscatterMap[binary.LittleEndian.Uint16(srcIP)]++*/
+                if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
+                        m := make(map[string]int)
+                        m[packetInfo] = 1
+                        backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
+                        packet2 := backscatterUnique[binary.LittleEndian.Uint16(srcIP)]
+                        if packet2 == packetInfo {
+                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+                        } else {
+                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packet2] = 1
+                        }
+                } else {
+                        backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+                }
+        }
 	return true
 }
 
@@ -254,8 +289,9 @@ func main() {
 	count = 0
 	netMap = make(map[string]map[uint16]int)
 	portMap = make(map[string]map[uint16]int)
-	portMapUnique = make(map[string]uint16)
-	//backscatterMap = make(map[uint16]int)
+	portMapUnique = make(map[string]string)
+	netMapUnique = make(map[string]uint16)
+        backscatterUnique = make(map[uint16]string)
 	backscatterMap = make(map[uint16]map[string]int)
 	// Open file instead of device
 	handle, err = pcap.OpenOffline(pcapFile)
@@ -268,8 +304,14 @@ func main() {
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	//var(i int = 0)
 	for packet := range packetSource.Packets() {
-
-		//fmt.Println("======PACKET LAYERS======")
+                count++
+		if count%1000000 == 0 {
+                   fmt.Printf("%d packets\n", count)
+                }
+                //if count == 10000000 {
+                //   break
+                //}
+                //fmt.Println("======PACKET LAYERS======")
 		/*for _, layer := range packet.Layers() {
 			//fmt.Println(layer.LayerType())
 		}*/
