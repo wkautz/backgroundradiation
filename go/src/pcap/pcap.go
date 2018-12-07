@@ -410,8 +410,8 @@ func main() {
 	           portsrcIP := getSrcIP(k)
 	           portdestIP := getDstIP(k)
 	           portdestPort := key
-	           newPacketInfo := stringifyNot(portsrcIP, portdestIP, string(portdestPort))
-                   fmt.Println(newPacketInfo)
+	           newPacketInfo := stringifyNot(portsrcIP, portdestIP, strconv.Itoa(int(portdestPort)))
+                   //fmt.Println(newPacketInfo)
 	           nonPortScan.Add(newPacketInfo) //does it need a type declared
 	        }
 	    }
@@ -425,8 +425,9 @@ func main() {
 	           portdestIP := key
 	           portdestPort := getDPortIP(k)
 	           //create packet info with key, val
-	           newPacketInfo := stringifyNot(portsrcIP, string(portdestIP), string(portdestPort))
-	           fmt.Println(newPacketInfo)
+                   //need to fix these strings to all be the same types
+	           newPacketInfo := stringifyNot(portsrcIP, string(portdestIP), strconv.Itoa(int(portdestPort)))
+	           //fmt.Println(newPacketInfo)
                    nonNetworkScan.Add(newPacketInfo)
 	        }
 	    }
@@ -440,15 +441,17 @@ func main() {
 	             portsrcIP := k
 	             portdestIP := getDstIP(key)
 	             portdestPort := getDPortIP(key)
+                     //need to fix these strings
 	             newPacketInfo := stringifyNot(string(portsrcIP), string(portdestIP), portdestPort)
-	             fmt.Println(newPacketInfo)
+	             //fmt.Println(newPacketInfo)
                      nonBackscatter.Add(newPacketInfo)
 	         }
 	         //nonBackscatter.Add(newPacketInfo)
 	      }
 	  }
 	  intermediate := set.Intersection(nonPortScan, nonNetworkScan)
-	  finalSet := set.Intersection(intermediate, nonBackscatter)
+	  fmt.Printf("%d\n", intermediate.Size())
+          finalSet := set.Intersection(intermediate, nonBackscatter)
 	  f, _ := os.Create("otherPacks.txt")
 	  defer f.Close()
 	  fmt.Printf("%d", finalSet.Size())
