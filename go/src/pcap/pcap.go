@@ -7,12 +7,12 @@ import (
 	"net"
 	"strings"
         "strconv"
-	//"os"
+	"os"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	//"github.com/fatih/set"
+	"github.com/fatih/set"
 )
 
 var (
@@ -23,6 +23,10 @@ var (
 	err    error
 	count  int
 )
+const PORT_SCAN_CUTOFF = 10
+const NET_SCAN_CUTOFF = 10
+const BACKSCATTER_CUTOFF = 10
+
 
 func stringCounter(num uint16, count uint16) string{
      countStr := strconv.Itoa(int(count))
@@ -43,7 +47,10 @@ func stringifyNot(srcIP string, dstIP string, dPort string) string {
 }
 
 func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
-	return strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))) + ";" + strconv.Itoa(int(binary.LittleEndian.Uint16(dstIP))) + ";" + strconv.Itoa(int(dPort))
+        dstIPint := 0
+        if dstIP != nil {dstIPint = int(binary.LittleEndian.Uint16(dstIP))}
+
+        return strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))) + ";" + strconv.Itoa(dstIPint) + ";" + strconv.Itoa(int(dPort))
 }
 
 func getSrcIP(packetInfo string) string {
@@ -144,10 +151,10 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
 	//fmt.Printf("FIN: %t\n", FIN)
 	//fmt.Printf("ACK: %t\n", ACK)
 
-	if !FIN && !ACK {
+	//if !FIN && !ACK {
 		//fmt.Println("NETWORK SCAN = FALSE")
-		return false
-	}
+	//	return false
+	//}
 	//fmt.Println("NETWORK SCAN = TRUE")
 	packetInfo := stringify(srcIP, nil, uint16(dstPort))
 	if netMapUnique[packetInfo] == 0 {
@@ -349,10 +356,10 @@ func main() {
 			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN)
 			//fmt.Println("==================================")
 			//fmt.Println("Testing for network scan")
-			//testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
+			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
 			//fmt.Println("Done testing network scan")
 			//fmt.Println("==================================")
-			//testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort))
+			testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort))
 			/*
 				type TCP struct {
 				BaseLayer
@@ -390,28 +397,28 @@ func main() {
 		//if (i == 4) {break}
 	}
 	//printBackscatterStats()
-	printPortScanStats()
+        //printPortScanStats()
 	//printNetScanStats()
-	/*
 	   nonPortScan := set.New(set.NonThreadSafe)
 	   nonNetworkScan := set.New(set.NonThreadSafe)
 	   nonBackscatter := set.New(set.NonThreadSafe)
-	*/ /* Filter Port */
-	/*for k, v := range portMap {
-	    if len(v) < 10 PORT_SCAN_CUTOFF  {
+	/* Filter Port */
+	for k, v := range portMap {
+	    if len(v) < PORT_SCAN_CUTOFF  {
 	       for key, _ := range v {
 	           //create packet info with key, val
 	           portsrcIP := getSrcIP(k)
 	           portdestIP := getDstIP(k)
 	           portdestPort := key
 	           newPacketInfo := stringifyNot(portsrcIP, portdestIP, string(portdestPort))
+                   fmt.Println(newPacketInfo)
 	           nonPortScan.Add(newPacketInfo) //does it need a type declared
 	        }
 	    }
-	}*/
+	}
 	/* Network Scan Filter */
-	/*for k, v := range netMap {
-	    if len(v) < 10 NET_SCAN_CUTOFF {
+	for k, v := range netMap {
+	    if len(v) < NET_SCAN_CUTOFF {
 	       for key, _ := range v {
 	           //could check networkscans
 	           portsrcIP := getSrcIP(k)
@@ -419,21 +426,23 @@ func main() {
 	           portdestPort := getDPortIP(k)
 	           //create packet info with key, val
 	           newPacketInfo := stringifyNot(portsrcIP, string(portdestIP), string(portdestPort))
-	           nonNetworkScan.Add(newPacketInfo)
+	           fmt.Println(newPacketInfo)
+                   nonNetworkScan.Add(newPacketInfo)
 	        }
 	    }
-	}*/
+	}
 	/* Backscatter Filter */
-	/*for k, v := range backscatterMap {
+	for k, v := range backscatterMap {
 	      //maybe write a count(v) function
-	      if len(v) < 10 BACKSCATTER_CUTOFF {
+	      if len(v) < BACKSCATTER_CUTOFF {
 	         //len(v) might not be right if you use multiple identical packets.
 	         for key, _ := range v {
 	             portsrcIP := k
 	             portdestIP := getDstIP(key)
 	             portdestPort := getDPortIP(key)
 	             newPacketInfo := stringifyNot(string(portsrcIP), string(portdestIP), portdestPort)
-	             nonBackscatter.Add(newPacketInfo)
+	             fmt.Println(newPacketInfo)
+                     nonBackscatter.Add(newPacketInfo)
 	         }
 	         //nonBackscatter.Add(newPacketInfo)
 	      }
@@ -442,11 +451,13 @@ func main() {
 	  finalSet := set.Intersection(intermediate, nonBackscatter)
 	  f, _ := os.Create("otherPacks.txt")
 	  defer f.Close()
-	  for !finalSet.IsEmpty() {
-	      item := finalSet.Pop().(string)
+	  fmt.Printf("%d", finalSet.Size())
+          for !finalSet.IsEmpty() {
+	      fmt.Println("line\n")
+              item := finalSet.Pop().(string)
 	      length, _ := f.WriteString(item) //need error checking
-	      if length != 0 {fmt.Println("MEH\n")}
+	      if length == 0 {fmt.Println("MEH\n")}
 	      length2, _ := f.WriteString("\n")
 	      if length2 != 1 {fmt.Println("BAD2\n")}
-	  } */
+	  }
 }
