@@ -426,7 +426,7 @@ func main() {
 	           portdestPort := getDPortIP(k)
 	           //create packet info with key, val
                    //need to fix these strings to all be the same types
-	           newPacketInfo := stringifyNot(portsrcIP, string(portdestIP), strconv.Itoa(int(portdestPort)))
+	           newPacketInfo := stringifyNot(portsrcIP, strconv.Itoa(int(portdestIP)), portdestPort)
 	           //fmt.Println(newPacketInfo)
                    nonNetworkScan.Add(newPacketInfo)
 	        }
@@ -442,7 +442,7 @@ func main() {
 	             portdestIP := getDstIP(key)
 	             portdestPort := getDPortIP(key)
                      //need to fix these strings
-	             newPacketInfo := stringifyNot(string(portsrcIP), string(portdestIP), portdestPort)
+	             newPacketInfo := stringifyNot(strconv.Itoa(int(portsrcIP)), portdestIP, portdestPort)
 	             //fmt.Println(newPacketInfo)
                      nonBackscatter.Add(newPacketInfo)
 	         }
@@ -450,14 +450,12 @@ func main() {
 	      }
 	  }
 	  intermediate := set.Intersection(nonPortScan, nonNetworkScan)
-	  fmt.Printf("%d\n", intermediate.Size())
-          finalSet := set.Intersection(intermediate, nonBackscatter)
+	  finalSet := set.Intersection(intermediate, nonBackscatter)
 	  f, _ := os.Create("otherPacks.txt")
 	  defer f.Close()
 	  fmt.Printf("%d", finalSet.Size())
           for !finalSet.IsEmpty() {
-	      fmt.Println("line\n")
-              item := finalSet.Pop().(string)
+	      item := finalSet.Pop().(string)
 	      length, _ := f.WriteString(item) //need error checking
 	      if length == 0 {fmt.Println("MEH\n")}
 	      length2, _ := f.WriteString("\n")
