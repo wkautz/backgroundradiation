@@ -8,6 +8,7 @@ import (
 	"strings"
         "strconv"
 	"os"
+        "sort"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -23,9 +24,9 @@ var (
 	err    error
 	count  int
 )
-const PORT_SCAN_CUTOFF = 10
-const NET_SCAN_CUTOFF = 10
-const BACKSCATTER_CUTOFF = 10
+const PORT_SCAN_CUTOFF = 15
+const NET_SCAN_CUTOFF = 6
+const BACKSCATTER_CUTOFF = 30
 
 
 func stringCounter(num uint16, count uint16) string{
@@ -69,7 +70,7 @@ var portMap map[string]map[uint16]int //Do we need another for UDP ports?
 var portMapUnique map[string]string
 var netMap map[string]map[uint16]int
 var netMapUnique map[string]uint16
-
+var freqMap map[int]int
 
 //var backscatterMap map[uint16]int
 
@@ -97,10 +98,6 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	//portMapUnique
 	if portMapUnique[packetInfo] == "" {
 		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
-        //} else if (getData(portMapUnique[packetInfo]) == string(uint16(dstPort))) && (getCount(portMapUnique[packetInfo]) != 0) {
-        //       counter := getCount(portMapUnique[packetInfo])
-        //       counter++
-        //       portMapUnique[packetInfo] = stringCounter(uint16(dstPort), counter)
         } else {
 		if portMap[packetInfo] == nil {
 			m := make(map[uint16]int)
@@ -131,32 +128,44 @@ func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 
 func printPortScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(portMap))
-	for k, v := range portMap {
-            if len(v) >= 5 {
-		fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
-		fmt.Printf("\t Has %d dPorts.\n", len(v))
+	for _, v := range portMap {
+            //if len(v) >= 5 {
+		//fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
+                //fmt.Printf("\t Has %d dPorts.\n", len(v))
 		countPackets := 0
 		for _, v1 := range v {
 			countPackets += v1
 		}
-		fmt.Printf("\t and %d packets\n", countPackets)
-	    }
+                freqMap[len(v)]++
+		//fmt.Printf("\t and %d packets\n", countPackets)
+	    //}
         }
 	return true
 }
 
+func printFreqMap() bool {
+     var keys []int
+     for k, _:= range freqMap {
+         keys = append(keys, k)
+     }
+     sort.Ints(keys)
+     for _, k := range keys {
+        fmt.Println("Key:", k, "Value:", freqMap[k])
+     }
+     return true
+}
+
 /* =================== Network Scans ==================== */
 //pull out features of UDP and TCP packets
-func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
-	//fmt.Printf("FIN: %t\n", FIN)
-	//fmt.Printf("ACK: %t\n", ACK)
+func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool) bool {
 
-	//if !FIN && !ACK {
-		//fmt.Println("NETWORK SCAN = FALSE")
-	//	return false
-	//}
-	//fmt.Println("NETWORK SCAN = TRUE")
-	packetInfo := stringify(srcIP, nil, uint16(dstPort))
+	if (FIN && ACK) || (SYN) || (FIN) {
+                //do nothing. I just didnt want to deal with the logic of
+                //trying to negate that
+        } else {
+                return false
+        }
+        packetInfo := stringify(srcIP, nil, uint16(dstPort))
 	if netMapUnique[packetInfo] == 0 {
                 netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
         } else {
@@ -194,18 +203,19 @@ func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) boo
 
 func printNetScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
-	for k, v := range netMap {
-		if len(v) >= 5 {
+	for _, v := range netMap {
+		//if len(v) >= 5 {
 
-			fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
-			fmt.Printf("\t Has %d ipDsts.\n", len(v))
+			//fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstPort(k)) //can we print this way?
+			//fmt.Printf("\t Has %d ipDsts.\n", len(v))
 			counter := 0
 			for _, v1 := range v {
 				counter += v1
 			}
-			fmt.Printf("\t and %d packets\n", counter)
+                        freqMap[len(v)]++
+			//fmt.Printf("\t and %d packets\n", counter)
 
-		}
+		//}
 	}
 	return true
 }
@@ -283,18 +293,30 @@ func testBackscatterICMP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 }
 
 func printBackscatterStats() bool {
-	fmt.Printf("Number of backscatters: %d\n", len(backscatterMap))
-	for k, v := range backscatterMap {
-		fmt.Printf("ipSrc: %d sent %d packets\n", k, v)
-	}
-	return true
+     fmt.Printf("Number of PossibleDoSers (the fuckers): %d\n", len(backscatterMap))
+        for _, v := range backscatterMap {
+                //if len(v) >= 5 {
+
+                        //fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstPort(k)) //can we print this way?
+                        //fmt.Printf("\t Has %d ipDsts.\n", len(v))
+                        counter := 0
+                        for _, v1 := range v {
+                                counter += v1
+                        }
+                        freqMap[len(v)]++
+                        //fmt.Printf("\t and %d packets\n", counter)
+
+                //}
+        }
+        return true
 }
 
 /* ========================= Main Loop ========================== */
 
 func main() {
 	count = 0
-	netMap = make(map[string]map[uint16]int)
+	freqMap = make(map[int]int)
+        netMap = make(map[string]map[uint16]int)
 	portMap = make(map[string]map[uint16]int)
 	portMapUnique = make(map[string]string)
 	netMapUnique = make(map[string]uint16)
@@ -356,7 +378,7 @@ func main() {
 			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN)
 			//fmt.Println("==================================")
 			//fmt.Println("Testing for network scan")
-			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK)
+			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN)
 			//fmt.Println("Done testing network scan")
 			//fmt.Println("==================================")
 			testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort))
@@ -396,10 +418,11 @@ func main() {
 		//i += 1
 		//if (i == 4) {break}
 	}
-	//printBackscatterStats()
+        //printBackscatterStats()
         //printPortScanStats()
 	//printNetScanStats()
-	   nonPortScan := set.New(set.NonThreadSafe)
+	//printFreqMap()
+           nonPortScan := set.New(set.NonThreadSafe)
 	   nonNetworkScan := set.New(set.NonThreadSafe)
 	   nonBackscatter := set.New(set.NonThreadSafe)
 	/* Filter Port */
@@ -424,9 +447,8 @@ func main() {
 	           portsrcIP := getSrcIP(k)
 	           portdestIP := key
 	           portdestPort := getDPortIP(k)
-	           //create packet info with key, val
-                   //need to fix these strings to all be the same types
-	           newPacketInfo := stringifyNot(portsrcIP, strconv.Itoa(int(portdestIP)), portdestPort)
+	           //doesn't take into account the frequency of these packets
+                   newPacketInfo := stringifyNot(portsrcIP, strconv.Itoa(int(portdestIP)), portdestPort)
 	           //fmt.Println(newPacketInfo)
                    nonNetworkScan.Add(newPacketInfo)
 	        }
