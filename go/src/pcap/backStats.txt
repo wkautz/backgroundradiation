@@ -1,3 +1,4 @@
+#key: numDestinations, value: numSrcs
 Key: 1 Value: 1189
 Key: 2 Value: 1045
 Key: 3 Value: 795
@@ -261,6 +262,7 @@ Key: 11386 Value: 1
 Key: 14912 Value: 1
 Key: 59758 Value: 1
 Key: 65126 Value: 1
+# key: numIPDestinations value: numPackets
 Key: 1 Value: 13000
 Key: 2 Value: 14878
 Key: 3 Value: 17384

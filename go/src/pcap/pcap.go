@@ -208,20 +208,22 @@ func printPortScanStats() bool {
 }
 
 func printFreqMap(filename string) bool {
-        f, _ := os.Create(filename)
-        defer f.Close()
+	f, _ := os.Create(filename)
+	defer f.Close()
 
-        var keys []int
-        for k, _ := range freqMap {
-                keys = append(keys, k)
-        }
-        sort.Ints(keys)
-        for _, k := range keys {
-            item := strconv.Itoa(k) + "," + strconv.Itoa(freqMap[k]) + "\n"
-            length, _ := f.WriteString(item)
-            if length == 0 {fmt.Println("MEH\n")}
-        }
-        return true
+	var keys []int
+	for k := range freqMap {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	for _, k := range keys {
+		item := strconv.Itoa(k) + "," + strconv.Itoa(freqMap[k]) + "\n"
+		length, _ := f.WriteString(item)
+		if length == 0 {
+			fmt.Println("MEH\n")
+		}
+	}
+	return true
 }
 
 /* =================== Network Scans ==================== */
@@ -486,7 +488,7 @@ func main() {
 		} else {
 			pcapFileInput = pcapFile3
 		}
-	handle, err = pcap.OpenOffline(pcapFileInput)
+		handle, err = pcap.OpenOffline(pcapFileInput)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -499,7 +501,6 @@ func main() {
 		for packet := range packetSource.Packets() {
 			count++
 			if count%1000000 == 0 {
-				break
 				fmt.Printf("%d packets\n", count)
 			}
 			//if count == 10000000 {
@@ -577,17 +578,17 @@ func main() {
 	}
 	//END
 	//BEGINNING OF STATS PRINTING
-        printBackscatterStats()
-        printFreqMap("backscatter.txt")
-
-        freqMap = make(map[int]int)
-        printPortScanStats()
-        printFreqMap("portscan.txt")
+	printBackscatterStats()
+	printFreqMap("backscatter.txt")
 
 	freqMap = make(map[int]int)
-        printNetScanStats()
+	printPortScanStats()
+	printFreqMap("portscan.txt")
+
+	freqMap = make(map[int]int)
+	printNetScanStats()
 	printFreqMap("netscan.txt")
-        //END OF STATS PRINTING
+	//END OF STATS PRINTING
 	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
 	nonBackscatter := set.New(set.NonThreadSafe)
@@ -620,9 +621,18 @@ func main() {
 			}
 		}
 	}
+
+	/* flagMap Printing */
+	f1, _ := os.Create("flagMap.txt")
+	defer f1.Close()
 	for k, v := range flagMap {
-		fmt.Printf("IPSrc: %s    Val: %d\n", k, v)
+		f1.WriteString(k + ",")
+		for i := range v {
+			f1.WriteString(strconv.FormatUint(uint64(v[i]), 10) + ",")
+		}
+		f1.WriteString("\n")
 	}
+
 	/* Backscatter Filter */
 	for k, v := range backscatterMap {
 		//maybe write a count(v) function
