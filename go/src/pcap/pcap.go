@@ -17,11 +17,11 @@ import (
 )
 
 var (
-	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	//pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
-	//pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
-        //pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
-        pcapFile string = "/home/wkautz/pcap_file"
+	pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
+	pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
+	pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
+        pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
+        //pcapFile string = "/home/wkautz/pcap_file"
 	handle *pcap.Handle
 	err    error
 	count  int
@@ -420,8 +420,19 @@ func main() {
 	backscatterUnique = make(map[uint16]string)
 	backscatterMap = make(map[uint16]map[string]int)
 	// Open file instead of device
-	// Need to loop over this part and do the next pcapFile
-        handle, err = pcap.OpenOffline(pcapFile)
+        //START LOOP
+	for i := 0; i < 4; i++ {
+        pcapFileInput := ""
+        if i == 0 {
+           pcapFileInput = pcapFile
+        } else if i == 1 {
+           pcapFileInput = pcapFile1
+        } else if i == 2 {
+           pcapFileInput = pcapFile2
+        } else {
+           pcapFileInput = pcapFile3
+        }
+        handle, err = pcap.OpenOffline(pcapFileInput)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -508,6 +519,8 @@ func main() {
 		}*/
 
 	}
+        }
+        //END
 	//printBackscatterStats()
 	//printPortScanStats()
 	//printNetScanStats()
