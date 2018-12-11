@@ -576,7 +576,8 @@ func main() {
 		}
 	}
 	//END
-	printBackscatterStats()
+	//BEGINNING OF STATS PRINTING
+        printBackscatterStats()
         printFreqMap("backscatter.txt")
 
         freqMap = make(map[int]int)
@@ -586,6 +587,7 @@ func main() {
 	freqMap = make(map[int]int)
         printNetScanStats()
 	printFreqMap("netscan.txt")
+        //END OF STATS PRINTING
 	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
 	nonBackscatter := set.New(set.NonThreadSafe)
