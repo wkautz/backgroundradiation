@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strings"
-        "strconv"
 	"os"
-        "sort"
+	"sort"
+	"strconv"
+	"strings"
 
+	"github.com/fatih/set"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/fatih/set"
 )
 
 var (
@@ -26,23 +26,23 @@ var (
 	err    error
 	count  int
 )
+
 const PORT_SCAN_CUTOFF = 15
 const NET_SCAN_CUTOFF = 6
 const BACKSCATTER_CUTOFF = 30
 
-
-func stringCounter(num uint16, count uint16) string{
-     countStr := strconv.Itoa(int(count))
-     return strconv.Itoa(int(num)) + ";" + countStr
+func stringCounter(num uint16, count uint16) string {
+	countStr := strconv.Itoa(int(count))
+	return strconv.Itoa(int(num)) + ";" + countStr
 }
 
 func getData(thing string) string {
-     return strings.Split(thing, ";")[0]
+	return strings.Split(thing, ";")[0]
 }
 
 func getCount(thing string) uint16 {
-     counter, _ := strconv.Atoi(strings.Split(thing, ";")[1])
-     return uint16(counter)
+	counter, _ := strconv.Atoi(strings.Split(thing, ";")[1])
+	return uint16(counter)
 }
 
 func stringifyNot(srcIP string, dstIP string, dPort string) string {
@@ -77,10 +77,12 @@ func stringifyFlags(SYN bool, FIN bool, ACK bool, RST bool) string {
 
 */
 func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
-        dstIPint := 0
-        if dstIP != nil {dstIPint = int(binary.LittleEndian.Uint16(dstIP))}
+	dstIPint := 0
+	if dstIP != nil {
+		dstIPint = int(binary.LittleEndian.Uint16(dstIP))
+	}
 
-        return strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))) + ";" + strconv.Itoa(dstIPint) + ";" + strconv.Itoa(int(dPort))
+	return strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))) + ";" + strconv.Itoa(dstIPint) + ";" + strconv.Itoa(int(dPort))
 }
 
 func getSrcIP(packetInfo string) string {
@@ -126,19 +128,19 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 			m := make(map[uint16]int)
 			m[uint16(dstPort)] = 1
 			portMap[packetInfo] = m
-                        dstPortInt, _ := strconv.Atoi(getData(portMapUnique[packetInfo]))
+			dstPortInt, _ := strconv.Atoi(getData(portMapUnique[packetInfo]))
 			dstPort2 := uint16(dstPortInt)
-                        //numHits := int(getCount(portMapUnique[packetInfo]))
-                        if dstPort2 == uint16(dstPort) {
-				portMap[packetInfo][uint16(dstPort)] += 1//numHits
+			//numHits := int(getCount(portMapUnique[packetInfo]))
+			if dstPort2 == uint16(dstPort) {
+				portMap[packetInfo][uint16(dstPort)] += 1 //numHits
 			} else {
-				portMap[packetInfo][uint16(dstPort2)] = 1//numHits
+				portMap[packetInfo][uint16(dstPort2)] = 1 //numHits
 			}
 		} else {
 			//if it passes checks, just remove it here to save memory
 			portMap[packetInfo][uint16(dstPort)]++
 		}
-                portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 0)
+		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 0)
 	}
 	return true
 }
@@ -146,57 +148,57 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) bool {
 	//any UDP checks would go here
 	packetInfo := stringify(srcIP, dstIP, 0)
-	 if portMapUnique[packetInfo] == "" {
-                portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
-        } else {
-                if portMap[packetInfo] == nil {
-                        m := make(map[uint16]int)
-                        m[uint16(dstPort)] = 1
-                        portMap[packetInfo] = m
-                        dstPortInt, _ := strconv.Atoi(getData(portMapUnique[packetInfo]))
-                        dstPort2 := uint16(dstPortInt)
-                        //numHits := int(getCount(portMapUnique[packetInfo]))
-                        if dstPort2 == uint16(dstPort) {
-                                portMap[packetInfo][uint16(dstPort)] += 1//numHits
-                        } else {
-                                portMap[packetInfo][uint16(dstPort2)] = 1//numHits
-                        }
-                } else {
-                        //if it passes checks, just remove it here to save memory
-                        portMap[packetInfo][uint16(dstPort)]++
-                }
-                portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 0)
-        }
+	if portMapUnique[packetInfo] == "" {
+		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
+	} else {
+		if portMap[packetInfo] == nil {
+			m := make(map[uint16]int)
+			m[uint16(dstPort)] = 1
+			portMap[packetInfo] = m
+			dstPortInt, _ := strconv.Atoi(getData(portMapUnique[packetInfo]))
+			dstPort2 := uint16(dstPortInt)
+			//numHits := int(getCount(portMapUnique[packetInfo]))
+			if dstPort2 == uint16(dstPort) {
+				portMap[packetInfo][uint16(dstPort)] += 1 //numHits
+			} else {
+				portMap[packetInfo][uint16(dstPort2)] = 1 //numHits
+			}
+		} else {
+			//if it passes checks, just remove it here to save memory
+			portMap[packetInfo][uint16(dstPort)]++
+		}
+		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 0)
+	}
 	return true
 }
 
 func printPortScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(portMap))
 	for _, v := range portMap {
-            //if len(v) >= 5 {
+		//if len(v) >= 5 {
 		//fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstIP(k)) //can we print this way?
-                //fmt.Printf("\t Has %d dPorts.\n", len(v))
+		//fmt.Printf("\t Has %d dPorts.\n", len(v))
 		countPackets := 0
 		for _, v1 := range v {
 			countPackets += v1
 		}
-                freqMap[len(v)]++
+		freqMap[len(v)]++
 		//fmt.Printf("\t and %d packets\n", countPackets)
-	    //}
-        }
+		//}
+	}
 	return true
 }
 
 func printFreqMap() bool {
-     var keys []int
-     for k, _:= range freqMap {
-         keys = append(keys, k)
-     }
-     sort.Ints(keys)
-     for _, k := range keys {
-        fmt.Println("Key:", k, "Value:", freqMap[k])
-     }
-     return true
+	var keys []int
+	for k, _ := range freqMap {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	for _, k := range keys {
+		fmt.Println("Key:", k, "Value:", freqMap[k])
+	}
+	return true
 }
 
 /* =================== Network Scans ==================== */
@@ -213,48 +215,48 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
         //type := "tcp"
         packetInfo := stringify(srcIP, nil, uint16(dstPort))
 	if netMapUnique[packetInfo] == 0 {
-                netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
-        } else {
+		netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
+	} else {
 
-                if netMap[packetInfo] == nil {
-                        m := make(map[uint16]int)
-                        m[binary.LittleEndian.Uint16(dstIP)] = 1
-                        netMap[packetInfo] = m
-                        dstIP2 := netMapUnique[packetInfo]
-                        if dstIP2 == binary.LittleEndian.Uint16(dstIP) {
-                                netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
-                        } else {
-                                netMap[packetInfo][dstIP2] = 1
-                        }
-                } else {
-                        //if it passes checks, just remove it here to save memory
-                        netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
-                }
-        }
+		if netMap[packetInfo] == nil {
+			m := make(map[uint16]int)
+			m[binary.LittleEndian.Uint16(dstIP)] = 1
+			netMap[packetInfo] = m
+			dstIP2 := netMapUnique[packetInfo]
+			if dstIP2 == binary.LittleEndian.Uint16(dstIP) {
+				netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+			} else {
+				netMap[packetInfo][dstIP2] = 1
+			}
+		} else {
+			//if it passes checks, just remove it here to save memory
+			netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+		}
+	}
 	return true
 }
 
 func testNetworkScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.UDPPort) bool {
 	packetInfo := stringify(srcIP, nil, uint16(dstPort))
 	if netMapUnique[packetInfo] == 0 {
-                netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
-        } else {
+		netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
+	} else {
 
-                if netMap[packetInfo] == nil {
-                        m := make(map[uint16]int)
-                        m[binary.LittleEndian.Uint16(dstIP)] = 1
-                        netMap[packetInfo] = m
-                        dstIP2 := netMapUnique[packetInfo]
-                        if dstIP2 == binary.LittleEndian.Uint16(dstIP) {
-                                netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
-                        } else {
-                                netMap[packetInfo][dstIP2] = 1
-                        }
-                } else {
-                        //if it passes checks, just remove it here to save memory
-                        netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
-                }
-        }
+		if netMap[packetInfo] == nil {
+			m := make(map[uint16]int)
+			m[binary.LittleEndian.Uint16(dstIP)] = 1
+			netMap[packetInfo] = m
+			dstIP2 := netMapUnique[packetInfo]
+			if dstIP2 == binary.LittleEndian.Uint16(dstIP) {
+				netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+			} else {
+				netMap[packetInfo][dstIP2] = 1
+			}
+		} else {
+			//if it passes checks, just remove it here to save memory
+			netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+		}
+	}
 	return true
 }
 
@@ -262,24 +264,24 @@ func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) boo
 	//if type != 8 || code != 0 {return false}
 	packetInfo := stringify(srcIP, nil, uint16(dstPort))
 	if netMapUnique[packetInfo] == 0 {
-                netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
-        } else {
+		netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
+	} else {
 
-                if netMap[packetInfo] == nil {
-                        m := make(map[uint16]int)
-                        m[binary.LittleEndian.Uint16(dstIP)] = 1
-                        netMap[packetInfo] = m
-                        dstIP2 := netMapUnique[packetInfo]
-                        if dstIP2 == binary.LittleEndian.Uint16(dstIP) {
-                                netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
-                        } else {
-                                netMap[packetInfo][dstIP2] = 1
-                        }
-                } else {
-                        //if it passes checks, just remove it here to save memory
-                        netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
-                }
-        }
+		if netMap[packetInfo] == nil {
+			m := make(map[uint16]int)
+			m[binary.LittleEndian.Uint16(dstIP)] = 1
+			netMap[packetInfo] = m
+			dstIP2 := netMapUnique[packetInfo]
+			if dstIP2 == binary.LittleEndian.Uint16(dstIP) {
+				netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+			} else {
+				netMap[packetInfo][dstIP2] = 1
+			}
+		} else {
+			//if it passes checks, just remove it here to save memory
+			netMap[packetInfo][binary.LittleEndian.Uint16(dstIP)]++
+		}
+	}
 	return true
 }
 
@@ -325,6 +327,7 @@ func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16, FIN bool, ACK 
                         backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
                 }
         }
+
 	return true
 }
 
@@ -334,24 +337,24 @@ func testBackscatterUDP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	packetInfo := stringify(srcIP, dstIP, dPort)
 
 	if backscatterUnique[binary.LittleEndian.Uint16(srcIP)] == "" {
-                backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
-        } else {
+		backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
+	} else {
 
-                if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
-                        m := make(map[string]int)
-                        m[packetInfo] = 1
-                        backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
-                        packet2 := backscatterUnique[binary.LittleEndian.Uint16(srcIP)]
-                        if packet2 == packetInfo {
-                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
-                        } else {
-                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packet2] = 1
-                        }
-                } else {
-                        backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
-                }
-        }
-        return true
+		if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
+			m := make(map[string]int)
+			m[packetInfo] = 1
+			backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
+			packet2 := backscatterUnique[binary.LittleEndian.Uint16(srcIP)]
+			if packet2 == packetInfo {
+				backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+			} else {
+				backscatterMap[binary.LittleEndian.Uint16(srcIP)][packet2] = 1
+			}
+		} else {
+			backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+		}
+	}
+	return true
 }
 
 //TODO: NEED TO PASS IN CODE AND TYPE FOR ICMP
@@ -365,44 +368,44 @@ func testBackscatterICMP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
 	}*/
 
 	packetInfo := stringify(srcIP, dstIP, dPort)
-        if backscatterUnique[binary.LittleEndian.Uint16(srcIP)] == "" {
-                backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
-        } else {
+	if backscatterUnique[binary.LittleEndian.Uint16(srcIP)] == "" {
+		backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
+	} else {
 
-                if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
-                        m := make(map[string]int)
-                        m[packetInfo] = 1
-                        backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
-                        packet2 := backscatterUnique[binary.LittleEndian.Uint16(srcIP)]
-                        if packet2 == packetInfo {
-                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
-                        } else {
-                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packet2] = 1
-                        }
-                } else {
-                        backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
-                }
-        }
-        return true
+		if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
+			m := make(map[string]int)
+			m[packetInfo] = 1
+			backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
+			packet2 := backscatterUnique[binary.LittleEndian.Uint16(srcIP)]
+			if packet2 == packetInfo {
+				backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+			} else {
+				backscatterMap[binary.LittleEndian.Uint16(srcIP)][packet2] = 1
+			}
+		} else {
+			backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+		}
+	}
+	return true
 }
 
 func printBackscatterStats() bool {
-     fmt.Printf("Number of PossibleDoSers (the fuckers): %d\n", len(backscatterMap))
-        for _, v := range backscatterMap {
-                //if len(v) >= 5 {
+	fmt.Printf("Number of PossibleDoSers (the fuckers): %d\n", len(backscatterMap))
+	for _, v := range backscatterMap {
+		//if len(v) >= 5 {
 
-                        //fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstPort(k)) //can we print this way?
-                        //fmt.Printf("\t Has %d ipDsts.\n", len(v))
-                        counter := 0
-                        for _, v1 := range v {
-                                counter += v1
-                        }
-                        freqMap[len(v)]++
-                        //fmt.Printf("\t and %d packets\n", counter)
+		//fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstPort(k)) //can we print this way?
+		//fmt.Printf("\t Has %d ipDsts.\n", len(v))
+		counter := 0
+		for _, v1 := range v {
+			counter += v1
+		}
+		freqMap[len(v)]++
+		//fmt.Printf("\t and %d packets\n", counter)
 
-                //}
-        }
-        return true
+		//}
+	}
+	return true
 }
 
 /* ========================= Main Loop ========================== */
@@ -410,11 +413,11 @@ func printBackscatterStats() bool {
 func main() {
 	count = 0
 	freqMap = make(map[int]int)
-        netMap = make(map[string]map[uint16]int)
+	netMap = make(map[string]map[uint16]int)
 	portMap = make(map[string]map[uint16]int)
 	portMapUnique = make(map[string]string)
 	netMapUnique = make(map[string]uint16)
-        backscatterUnique = make(map[uint16]string)
+	backscatterUnique = make(map[uint16]string)
 	backscatterMap = make(map[uint16]map[string]int)
 	// Open file instead of device
 	// Need to loop over this part and do the next pcapFile
@@ -426,17 +429,17 @@ func main() {
 
 	// Loop through packets in file
 	//ALSO NEED TO LOOP OVER ALL THE FILES
-        packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
-        for packet := range packetSource.Packets() {
-                count++
+	for packet := range packetSource.Packets() {
+		count++
 		if count%1000000 == 0 {
-                   fmt.Printf("%d packets\n", count)
-                }
-                //if count == 10000000 {
-                //   break
-                //}
-                //fmt.Println("======PACKET LAYERS======")
+			fmt.Printf("%d packets\n", count)
+		}
+		//if count == 10000000 {
+		//   break
+		//}
+		//fmt.Println("======PACKET LAYERS======")
 		/*for _, layer := range packet.Layers() {
 			//fmt.Println(layer.LayerType())
 		}*/
@@ -505,9 +508,8 @@ func main() {
 		}*/
 
 	}
-        //NEED TO LOOP FOR OTHER FILES HERE _________________________________
-        //printBackscatterStats()
-        //printPortScanStats()
+	//printBackscatterStats()
+	//printPortScanStats()
 	//printNetScanStats()
 	//printFreqMap()
         nonPortScan := set.New(set.NonThreadSafe)
@@ -515,60 +517,64 @@ func main() {
 	nonBackscatter := set.New(set.NonThreadSafe)
 	/* Filter Port */
 	for k, v := range portMap {
-	    if len(v) < PORT_SCAN_CUTOFF  {
-	       for key, _ := range v {
-	           //create packet info with key, val
-	           portsrcIP := getSrcIP(k)
-	           portdestIP := getDstIP(k)
-	           portdestPort := key
-	           newPacketInfo := stringifyNot(portsrcIP, portdestIP, strconv.Itoa(int(portdestPort)))
-                   //fmt.Println(newPacketInfo)
-	           nonPortScan.Add(newPacketInfo) //does it need a type declared
-	        }
-	    }
+		if len(v) < PORT_SCAN_CUTOFF {
+			for key, _ := range v {
+				//create packet info with key, val
+				portsrcIP := getSrcIP(k)
+				portdestIP := getDstIP(k)
+				portdestPort := key
+				newPacketInfo := stringifyNot(portsrcIP, portdestIP, strconv.Itoa(int(portdestPort)))
+				//fmt.Println(newPacketInfo)
+				nonPortScan.Add(newPacketInfo) //does it need a type declared
+			}
+		}
 	}
 	/* Network Scan Filter */
 	for k, v := range netMap {
-	    if len(v) < NET_SCAN_CUTOFF {
-	       for key, _ := range v {
-	           //could check networkscans
-	           portsrcIP := getSrcIP(k)
-	           portdestIP := key
-	           portdestPort := getDPortIP(k)
-	           //doesn't take into account the frequency of these packets
-                   newPacketInfo := stringifyNot(portsrcIP, strconv.Itoa(int(portdestIP)), portdestPort)
-	           //fmt.Println(newPacketInfo)
-                   nonNetworkScan.Add(newPacketInfo)
-	        }
-	    }
+		if len(v) < NET_SCAN_CUTOFF {
+			for key, _ := range v {
+				//could check networkscans
+				portsrcIP := getSrcIP(k)
+				portdestIP := key
+				portdestPort := getDPortIP(k)
+				//doesn't take into account the frequency of these packets
+				newPacketInfo := stringifyNot(portsrcIP, strconv.Itoa(int(portdestIP)), portdestPort)
+				//fmt.Println(newPacketInfo)
+				nonNetworkScan.Add(newPacketInfo)
+			}
+		}
 	}
 	/* Backscatter Filter */
 	for k, v := range backscatterMap {
-	      //maybe write a count(v) function
-	      if len(v) < BACKSCATTER_CUTOFF {
-	         //len(v) might not be right if you use multiple identical packets.
-	         for key, _ := range v {
-	             portsrcIP := k
-	             portdestIP := getDstIP(key)
-	             portdestPort := getDPortIP(key)
-                     //need to fix these strings
-	             newPacketInfo := stringifyNot(strconv.Itoa(int(portsrcIP)), portdestIP, portdestPort)
-	             //fmt.Println(newPacketInfo)
-                     nonBackscatter.Add(newPacketInfo)
-	         }
-	         //nonBackscatter.Add(newPacketInfo)
-	      }
-	  }
-	  intermediate := set.Intersection(nonPortScan, nonNetworkScan)
-	  finalSet := set.Intersection(intermediate, nonBackscatter)
-	  f, _ := os.Create("otherPacks.txt")
-	  defer f.Close()
-	  fmt.Printf("%d", finalSet.Size())
-          for !finalSet.IsEmpty() {
-	      item := finalSet.Pop().(string)
-	      length, _ := f.WriteString(item) //need error checking
-	      if length == 0 {fmt.Println("MEH\n")}
-	      length2, _ := f.WriteString("\n")
-	      if length2 != 1 {fmt.Println("BAD2\n")}
-	  }
+		//maybe write a count(v) function
+		if len(v) < BACKSCATTER_CUTOFF {
+			//len(v) might not be right if you use multiple identical packets.
+			for key, _ := range v {
+				portsrcIP := k
+				portdestIP := getDstIP(key)
+				portdestPort := getDPortIP(key)
+				//need to fix these strings
+				newPacketInfo := stringifyNot(strconv.Itoa(int(portsrcIP)), portdestIP, portdestPort)
+				//fmt.Println(newPacketInfo)
+				nonBackscatter.Add(newPacketInfo)
+			}
+			//nonBackscatter.Add(newPacketInfo)
+		}
+	}
+	intermediate := set.Intersection(nonPortScan, nonNetworkScan)
+	finalSet := set.Intersection(intermediate, nonBackscatter)
+	f, _ := os.Create("otherPacks.txt")
+	defer f.Close()
+	fmt.Printf("%d", finalSet.Size())
+	for !finalSet.IsEmpty() {
+		item := finalSet.Pop().(string)
+		length, _ := f.WriteString(item) //need error checking
+		if length == 0 {
+			fmt.Println("MEH\n")
+		}
+		length2, _ := f.WriteString("\n")
+		if length2 != 1 {
+			fmt.Println("BAD2\n")
+		}
+	}
 }
