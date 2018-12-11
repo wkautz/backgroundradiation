@@ -27,7 +27,7 @@ var (
 	count  int
 )
 
-const PORT_SCAN_CUTOFF = 15
+const PORT_SCAN_CUTOFF = 30
 const NET_SCAN_CUTOFF = 6
 const BACKSCATTER_CUTOFF = 30
 
