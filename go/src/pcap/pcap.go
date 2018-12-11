@@ -207,16 +207,21 @@ func printPortScanStats() bool {
 	return true
 }
 
-func printFreqMap() bool {
-	var keys []int
-	for k, _ := range freqMap {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys)
-	for _, k := range keys {
-		fmt.Println("Key:", k, "Value:", freqMap[k])
-	}
-	return true
+func printFreqMap(filename string) bool {
+        f, _ := os.Create(filename)
+        defer f.Close()
+
+        var keys []int
+        for k, _ := range freqMap {
+                keys = append(keys, k)
+        }
+        sort.Ints(keys)
+        for _, k := range keys {
+            item := strconv.Itoa(k) + "," + strconv.Itoa(freqMap[k]) + "\n"
+            length, _ := f.WriteString(item)
+            if length == 0 {fmt.Println("MEH\n")}
+        }
+        return true
 }
 
 /* =================== Network Scans ==================== */
@@ -481,7 +486,7 @@ func main() {
 		} else {
 			pcapFileInput = pcapFile3
 		}
-		handle, err = pcap.OpenOffline(pcapFileInput)
+	handle, err = pcap.OpenOffline(pcapFileInput)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -571,10 +576,16 @@ func main() {
 		}
 	}
 	//END
-	//printBackscatterStats()
-	//printPortScanStats()
-	//printNetScanStats()
-	//printFreqMap()
+	printBackscatterStats()
+        printFreqMap("backscatter.txt")
+
+        freqMap = make(map[int]int)
+        printPortScanStats()
+        printFreqMap("portscan.txt")
+
+	freqMap = make(map[int]int)
+        printNetScanStats()
+	printFreqMap("netscan.txt")
 	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
 	nonBackscatter := set.New(set.NonThreadSafe)
