@@ -18,8 +18,10 @@ import (
 
 var (
 	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	//pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	pcapFile string = "/home/wkautz/pcap_file"
+	//pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
+	//pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
+        //pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
+        pcapFile string = "/home/wkautz/pcap_file"
 	handle *pcap.Handle
 	err    error
 	count  int
@@ -47,6 +49,33 @@ func stringifyNot(srcIP string, dstIP string, dPort string) string {
 	return srcIP + ";" + dstIP + ";" + dPort
 }
 
+/*
+func stringifyFlags(SYN bool, FIN bool, ACK bool, RST bool) string {
+     result := ""
+     if SYN {
+        result += "1"
+     } else {
+        result += "0"
+     }
+     if FIN {
+        result += "1"
+     } else {
+        result += "0"
+     }
+     if ACK {
+        result += "1"
+     } else {
+        result += "0"
+     }
+     if RST {
+        result += "1"
+     } else {
+        result += "0"
+     }
+     return result
+}
+
+*/
 func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
         dstIPint := 0
         if dstIP != nil {dstIPint = int(binary.LittleEndian.Uint16(dstIP))}
@@ -72,17 +101,12 @@ var netMap map[string]map[uint16]int
 var netMapUnique map[string]uint16
 var freqMap map[int]int
 
-//var backscatterMap map[uint16]int
 
 var backscatterMap map[uint16]map[string]int
 var backscatterUnique map[uint16]string
 
 /* ===================== Port Scans & One Flow ====================== */
-func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool) bool {
-
-	//fmt.Printf("FIN: %t\n", FIN)
-	//fmt.Printf("ACK: %t\n", ACK)
-
+func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool, RST bool) bool {
 	/* Accept: (FINACK),(SYN), (FIN), (NULL)  */
 	if (FIN && ACK) || (SYN) || (FIN) {
 		//do nothing. I just didnt want to deal with the logic of
@@ -90,14 +114,13 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	} else {
 		return false
 	}
-	/*if !FIN && !ACK {
-		return false
-	}*/
-	packetInfo := stringify(srcIP, dstIP, 0)
+	//flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
+        //type := "tcp"
+        packetInfo := stringify(srcIP, dstIP, 0)
 
 	//portMapUnique
 	if portMapUnique[packetInfo] == "" {
-		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
+ 		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
         } else {
 		if portMap[packetInfo] == nil {
 			m := make(map[uint16]int)
@@ -119,7 +142,8 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	}
 	return true
 }
-func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool) bool {
+
+func testPortScanUDP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) bool {
 	//any UDP checks would go here
 	packetInfo := stringify(srcIP, dstIP, 0)
 	 if portMapUnique[packetInfo] == "" {
@@ -177,7 +201,7 @@ func printFreqMap() bool {
 
 /* =================== Network Scans ==================== */
 //pull out features of UDP and TCP packets
-func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool) bool {
+func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool, RST bool) bool {
 
 	if (FIN && ACK) || (SYN) || (FIN) {
                 //do nothing. I just didnt want to deal with the logic of
@@ -185,6 +209,8 @@ func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN 
         } else {
                 return false
         }
+        //flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
+        //type := "tcp"
         packetInfo := stringify(srcIP, nil, uint16(dstPort))
 	if netMapUnique[packetInfo] == 0 {
                 netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
@@ -260,29 +286,27 @@ func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) boo
 func printNetScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
 	for _, v := range netMap {
-		//if len(v) >= 5 {
-
-			//fmt.Printf("SrcIP, DestIP Pair: (%s, %s)\n", getSrcIP(k), getDstPort(k)) //can we print this way?
-			//fmt.Printf("\t Has %d ipDsts.\n", len(v))
-			counter := 0
-			for _, v1 := range v {
-				counter += v1
-			}
-                        freqMap[len(v)]++
-			//fmt.Printf("\t and %d packets\n", counter)
-
-		//}
+            counter := 0
+	    for _, v1 := range v {
+	        counter += v1
+	    }
+            freqMap[len(v)]++
 	}
 	return true
 }
 
 /* ==================== Backscatter ========================= */
 
-func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16) bool {
+func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16, FIN bool, ACK bool, SYN bool, RST bool) bool {
 	//must pass the flags into this method and check here
-	//only accept: SA, A, R, RA
-	//fmt.Println(srcIP)
-	packetInfo := stringify(srcIP, dstIP, dPort)
+	if (SYN && ACK) || (ACK) || (RST) || (RST && ACK) {
+           //do nothing, this is the good case
+        } else {
+          return false
+        }
+        //flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
+        //type := "tcp"
+        packetInfo := stringify(srcIP, dstIP, dPort)
         if backscatterUnique[binary.LittleEndian.Uint16(srcIP)] == "" {
                 backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
         } else {
@@ -393,7 +417,8 @@ func main() {
         backscatterUnique = make(map[uint16]string)
 	backscatterMap = make(map[uint16]map[string]int)
 	// Open file instead of device
-	handle, err = pcap.OpenOffline(pcapFile)
+	// Need to loop over this part and do the next pcapFile
+        handle, err = pcap.OpenOffline(pcapFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -441,18 +466,13 @@ func main() {
 
 		tcpLayer := packet.Layer(layers.LayerTypeTCP)
 		if tcpLayer != nil {
-			//fmt.Println("TCP Layer Detected.")
 			tcp, _ := tcpLayer.(*layers.TCP)
 
 			var dstTCPPort = tcp.DstPort
 
-			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN)
-			//fmt.Println("==================================")
-			//fmt.Println("Testing for network scan")
-			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN)
-			//fmt.Println("Done testing network scan")
-			//fmt.Println("==================================")
-			testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort))
+			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
+			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
+			testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
 			/*
 				type TCP struct {
 				BaseLayer
@@ -475,28 +495,24 @@ func main() {
 
 		/*udpLayer := packet.Layer(layers.LayerTypeUDP)
 		if udpLayer != nil {
-			fmt.Println("UDP layer detected.")
-
 			udp, _ := udpLayer.(*layers.UDP)
 
 			dstUDPPort := udp.DstPort
 
-			//testPortScanUDP(ipSrc, ipDst, dstPort, tcp.FIN, tcp.ACK)
+			//testPortScanUDP(ipSrc, ipDst, dstPort)
 			//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
 			//testBackscatterUDP(ipSrc)
 		}*/
 
-		//i += 1
-		//if (i == 4) {break}
 	}
         //NEED TO LOOP FOR OTHER FILES HERE _________________________________
         //printBackscatterStats()
         //printPortScanStats()
 	//printNetScanStats()
 	//printFreqMap()
-           nonPortScan := set.New(set.NonThreadSafe)
-	   nonNetworkScan := set.New(set.NonThreadSafe)
-	   nonBackscatter := set.New(set.NonThreadSafe)
+        nonPortScan := set.New(set.NonThreadSafe)
+	nonNetworkScan := set.New(set.NonThreadSafe)
+	nonBackscatter := set.New(set.NonThreadSafe)
 	/* Filter Port */
 	for k, v := range portMap {
 	    if len(v) < PORT_SCAN_CUTOFF  {
