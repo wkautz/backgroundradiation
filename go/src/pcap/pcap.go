@@ -200,7 +200,7 @@ func printPortScanStats() bool {
 		for _, v1 := range v {
 			countPackets += v1
 		}
-		freqMap[len(v)]++
+		freqMap[len(v)]+=countPackets
 		//fmt.Printf("\t and %d packets\n", countPackets)
 		//}
 	}
@@ -317,7 +317,7 @@ func printNetScanStats() bool {
 		for _, v1 := range v {
 			counter += v1
 		}
-		freqMap[len(v)]++
+		freqMap[len(v)] += counter
 	}
 	return true
 }
@@ -425,7 +425,7 @@ func printBackscatterStats() bool {
 		for _, v1 := range v {
 			counter += v1
 		}
-		freqMap[len(v)]++
+		freqMap[len(v)]+=counter
 		//fmt.Printf("\t and %d packets\n", counter)
 
 		//}
@@ -579,15 +579,15 @@ func main() {
 	//END
 	//BEGINNING OF STATS PRINTING
 	printBackscatterStats()
-	printFreqMap("backscatter.txt")
+	printFreqMap("backscattercounts.txt")
 
 	freqMap = make(map[int]int)
 	printPortScanStats()
-	printFreqMap("portscan.txt")
+	printFreqMap("portscancounts.txt")
 
 	freqMap = make(map[int]int)
 	printNetScanStats()
-	printFreqMap("netscan.txt")
+	printFreqMap("netscancounts.txt")
 	//END OF STATS PRINTING
 	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
