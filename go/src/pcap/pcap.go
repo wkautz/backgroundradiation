@@ -17,11 +17,11 @@ import (
 )
 
 var (
-	pcapFile string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
+	pcapFile  string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
 	pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
 	pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
-        pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
-        //pcapFile string = "/home/wkautz/pcap_file"
+	pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
+	//pcapFile string = "/home/wkautz/pcap_file"
 	handle *pcap.Handle
 	err    error
 	count  int
@@ -97,33 +97,51 @@ func getDPortIP(packetInfo string) string {
 	return strings.Split(packetInfo, ";")[2]
 }
 
-var portMap map[string]map[uint16]int //Do we need another for UDP ports?
+/* ===================== Map Data Structures ====================== */
+
+// (IPSrc, IPDest) -> Port Num -> #hits
+var portMap map[string]map[uint16]int
+
+// (IPSrc, IPDest) -> Port Num
 var portMapUnique map[string]string
+
+// ()
 var netMap map[string]map[uint16]int
 var netMapUnique map[string]uint16
 var freqMap map[int]int
 
+// IPSrc -> array (contains # of times certain flag params have been seen)
+var flagMap map[string][]uint16
 
 var backscatterMap map[uint16]map[string]int
 var backscatterUnique map[uint16]string
 
 /* ===================== Port Scans & One Flow ====================== */
 func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool, RST bool) bool {
+
+	testFlags(FIN, ACK, SYN, RST, srcIP)
+
 	/* Accept: (FINACK),(SYN), (FIN), (NULL)  */
 	if (FIN && ACK) || (SYN) || (FIN) {
 		//do nothing. I just didnt want to deal with the logic of
 		//trying to negate that
+
+		//did cs103 teach you nothing??? lol
 	} else {
 		return false
 	}
 	//flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
-        //type := "tcp"
-        packetInfo := stringify(srcIP, dstIP, 0)
+	//type := "tcp"
+	packetInfo := stringify(srcIP, dstIP, 0)
+
+	/*
+		//Create new map[srcIP]arr[flagCombinations] to see which flags
+	*/
 
 	//portMapUnique
 	if portMapUnique[packetInfo] == "" {
- 		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
-        } else {
+		portMapUnique[packetInfo] = stringCounter(uint16(dstPort), 1)
+	} else {
 		if portMap[packetInfo] == nil {
 			m := make(map[uint16]int)
 			m[uint16(dstPort)] = 1
@@ -206,14 +224,14 @@ func printFreqMap() bool {
 func testNetworkScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN bool, ACK bool, SYN bool, RST bool) bool {
 
 	if (FIN && ACK) || (SYN) || (FIN) {
-                //do nothing. I just didnt want to deal with the logic of
-                //trying to negate that
-        } else {
-                return false
-        }
-        //flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
-        //type := "tcp"
-        packetInfo := stringify(srcIP, nil, uint16(dstPort))
+		//do nothing. I just didnt want to deal with the logic of
+		//trying to negate that
+	} else {
+		return false
+	}
+	//flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
+	//type := "tcp"
+	packetInfo := stringify(srcIP, nil, uint16(dstPort))
 	if netMapUnique[packetInfo] == 0 {
 		netMapUnique[packetInfo] = binary.LittleEndian.Uint16(dstIP)
 	} else {
@@ -288,11 +306,11 @@ func testNetworkScanICMP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort) boo
 func printNetScanStats() bool {
 	fmt.Printf("Number of PossibleScanners: %d\n", len(netMap))
 	for _, v := range netMap {
-            counter := 0
-	    for _, v1 := range v {
-	        counter += v1
-	    }
-            freqMap[len(v)]++
+		counter := 0
+		for _, v1 := range v {
+			counter += v1
+		}
+		freqMap[len(v)]++
 	}
 	return true
 }
@@ -302,31 +320,31 @@ func printNetScanStats() bool {
 func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16, FIN bool, ACK bool, SYN bool, RST bool) bool {
 	//must pass the flags into this method and check here
 	if (SYN && ACK) || (ACK) || (RST) || (RST && ACK) {
-           //do nothing, this is the good case
-        } else {
-          return false
-        }
-        //flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
-        //type := "tcp"
-        packetInfo := stringify(srcIP, dstIP, dPort)
-        if backscatterUnique[binary.LittleEndian.Uint16(srcIP)] == "" {
-                backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
-        } else {
+		//do nothing, this is the good case
+	} else {
+		return false
+	}
+	//flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
+	//type := "tcp"
+	packetInfo := stringify(srcIP, dstIP, dPort)
+	if backscatterUnique[binary.LittleEndian.Uint16(srcIP)] == "" {
+		backscatterUnique[binary.LittleEndian.Uint16(srcIP)] = packetInfo
+	} else {
 
-                if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
-                        m := make(map[string]int)
-                        m[packetInfo] = 1
-                        backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
-                        packet2 := backscatterUnique[binary.LittleEndian.Uint16(srcIP)]
-                        if packet2 == packetInfo {
-                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
-                        } else {
-                                backscatterMap[binary.LittleEndian.Uint16(srcIP)][packet2] = 1
-                        }
-                } else {
-                        backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
-                }
-        }
+		if backscatterMap[binary.LittleEndian.Uint16(srcIP)] == nil {
+			m := make(map[string]int)
+			m[packetInfo] = 1
+			backscatterMap[binary.LittleEndian.Uint16(srcIP)] = m
+			packet2 := backscatterUnique[binary.LittleEndian.Uint16(srcIP)]
+			if packet2 == packetInfo {
+				backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+			} else {
+				backscatterMap[binary.LittleEndian.Uint16(srcIP)][packet2] = 1
+			}
+		} else {
+			backscatterMap[binary.LittleEndian.Uint16(srcIP)][packetInfo]++
+		}
+	}
 
 	return true
 }
@@ -410,122 +428,154 @@ func printBackscatterStats() bool {
 
 /* ========================= Main Loop ========================== */
 
+func testFlags(FIN bool, ACK bool, SYN bool, RST bool, srcIP net.IP) {
+	var bitarray uint64
+
+	val := string(strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))))
+
+	if FIN {
+		bitarray = bitarray | (1 << 3)
+	}
+
+	if ACK {
+		bitarray = bitarray | (1 << 2)
+	}
+
+	if SYN {
+		bitarray = bitarray | (1 << 1)
+	}
+
+	if RST {
+		bitarray = bitarray | 1
+	}
+
+	if flagMap[val] == nil {
+		flagMap[val] = make([]uint16, 13)
+	}
+
+	flagMap[val][bitarray]++
+
+}
+
 func main() {
+
 	count = 0
 	freqMap = make(map[int]int)
 	netMap = make(map[string]map[uint16]int)
 	portMap = make(map[string]map[uint16]int)
 	portMapUnique = make(map[string]string)
+	flagMap = make(map[string][]uint16)
 	netMapUnique = make(map[string]uint16)
 	backscatterUnique = make(map[uint16]string)
 	backscatterMap = make(map[uint16]map[string]int)
 	// Open file instead of device
-        //START LOOP
+	//START LOOP
 	for i := 0; i < 4; i++ {
-        pcapFileInput := ""
-        if i == 0 {
-           pcapFileInput = pcapFile
-        } else if i == 1 {
-           pcapFileInput = pcapFile1
-        } else if i == 2 {
-           pcapFileInput = pcapFile2
-        } else {
-           pcapFileInput = pcapFile3
-        }
-        handle, err = pcap.OpenOffline(pcapFileInput)
-	if err != nil {
-		log.Fatal(err)
+		pcapFileInput := ""
+		if i == 0 {
+			pcapFileInput = pcapFile
+		} else if i == 1 {
+			pcapFileInput = pcapFile1
+		} else if i == 2 {
+			pcapFileInput = pcapFile2
+		} else {
+			pcapFileInput = pcapFile3
+		}
+		handle, err = pcap.OpenOffline(pcapFileInput)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer handle.Close()
+
+		// Loop through packets in file
+		//ALSO NEED TO LOOP OVER ALL THE FILES
+		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+
+		for packet := range packetSource.Packets() {
+			count++
+			if count%1000000 == 0 {
+				break
+				fmt.Printf("%d packets\n", count)
+			}
+			//if count == 10000000 {
+			//   break
+			//}
+			//fmt.Println("======PACKET LAYERS======")
+			/*for _, layer := range packet.Layers() {
+				//fmt.Println(layer.LayerType())
+			}*/
+
+			//fmt.Println("=====================")
+
+			//Get IPv4 Layer
+			ipLayer := packet.Layer(layers.LayerTypeIPv4)
+			var ipSrc net.IP
+			var ipDst net.IP
+			if ipLayer != nil {
+				//fmt.Println("IPv4 Layer Detected.")
+				ip, _ := ipLayer.(*layers.IPv4)
+
+				//IP layer variables:
+				//Version (Either 4 or 6)
+				//IHL (IP Header Length in 32-bit words)
+				//TOS, Length, ID, Flages, FragOffset, TTL, Protocol (TCP?, etc.),
+				//Checksum, SrcIP, DstIP
+				//fmt.Printf("Source IP: %s\n", ip.SrcIP)
+				//fmt.Printf("Destin IP: %s\n", ip.DstIP)
+				//fmt.Printf("Protocol: %s\n", ip.Protocol)
+
+				ipSrc = ip.SrcIP
+				ipDst = ip.DstIP
+			}
+
+			tcpLayer := packet.Layer(layers.LayerTypeTCP)
+			if tcpLayer != nil {
+				tcp, _ := tcpLayer.(*layers.TCP)
+
+				var dstTCPPort = tcp.DstPort
+
+				testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
+				testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
+				testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
+				/*
+					type TCP struct {
+					BaseLayer
+					SrcPort, DstPort                           TCPPort
+					Seq                                        uint32
+					Ack                                        uint32
+					DataOffset                                 uint8
+					FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS bool
+					Window                                     uint16
+					Checksum                                   uint16
+					Urgent                                     uint16
+					sPort, dPort                               []byte
+					Options                                    []TCPOption
+					Padding                                    []byte
+					opts                                       [4]TCPOption
+					tcpipchecksum
+				*/
+
+			}
+
+			/*udpLayer := packet.Layer(layers.LayerTypeUDP)
+			if udpLayer != nil {
+				udp, _ := udpLayer.(*layers.UDP)
+
+				dstUDPPort := udp.DstPort
+
+				//testPortScanUDP(ipSrc, ipDst, dstPort)
+				//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
+				//testBackscatterUDP(ipSrc)
+			}*/
+
+		}
 	}
-	defer handle.Close()
-
-	// Loop through packets in file
-	//ALSO NEED TO LOOP OVER ALL THE FILES
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-
-	for packet := range packetSource.Packets() {
-		count++
-		if count%1000000 == 0 {
-			fmt.Printf("%d packets\n", count)
-		}
-		//if count == 10000000 {
-		//   break
-		//}
-		//fmt.Println("======PACKET LAYERS======")
-		/*for _, layer := range packet.Layers() {
-			//fmt.Println(layer.LayerType())
-		}*/
-
-		//fmt.Println("=====================")
-
-		//Get IPv4 Layer
-		ipLayer := packet.Layer(layers.LayerTypeIPv4)
-		var ipSrc net.IP
-		var ipDst net.IP
-		if ipLayer != nil {
-			//fmt.Println("IPv4 Layer Detected.")
-			ip, _ := ipLayer.(*layers.IPv4)
-
-			//IP layer variables:
-			//Version (Either 4 or 6)
-			//IHL (IP Header Length in 32-bit words)
-			//TOS, Length, ID, Flages, FragOffset, TTL, Protocol (TCP?, etc.),
-			//Checksum, SrcIP, DstIP
-			//fmt.Printf("Source IP: %s\n", ip.SrcIP)
-			//fmt.Printf("Destin IP: %s\n", ip.DstIP)
-			//fmt.Printf("Protocol: %s\n", ip.Protocol)
-
-			ipSrc = ip.SrcIP
-			ipDst = ip.DstIP
-		}
-
-		tcpLayer := packet.Layer(layers.LayerTypeTCP)
-		if tcpLayer != nil {
-			tcp, _ := tcpLayer.(*layers.TCP)
-
-			var dstTCPPort = tcp.DstPort
-
-			testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
-			testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
-			testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
-			/*
-				type TCP struct {
-				BaseLayer
-				SrcPort, DstPort                           TCPPort
-				Seq                                        uint32
-				Ack                                        uint32
-				DataOffset                                 uint8
-				FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS bool
-				Window                                     uint16
-				Checksum                                   uint16
-				Urgent                                     uint16
-				sPort, dPort                               []byte
-				Options                                    []TCPOption
-				Padding                                    []byte
-				opts                                       [4]TCPOption
-				tcpipchecksum
-			*/
-
-		}
-
-		/*udpLayer := packet.Layer(layers.LayerTypeUDP)
-		if udpLayer != nil {
-			udp, _ := udpLayer.(*layers.UDP)
-
-			dstUDPPort := udp.DstPort
-
-			//testPortScanUDP(ipSrc, ipDst, dstPort)
-			//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
-			//testBackscatterUDP(ipSrc)
-		}*/
-
-	}
-        }
-        //END
+	//END
 	//printBackscatterStats()
 	//printPortScanStats()
 	//printNetScanStats()
 	//printFreqMap()
-        nonPortScan := set.New(set.NonThreadSafe)
+	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
 	nonBackscatter := set.New(set.NonThreadSafe)
 	/* Filter Port */
@@ -556,6 +606,9 @@ func main() {
 				nonNetworkScan.Add(newPacketInfo)
 			}
 		}
+	}
+	for k, v := range flagMap {
+		fmt.Printf("IPSrc: %s    Val: %d\n", k, v)
 	}
 	/* Backscatter Filter */
 	for k, v := range backscatterMap {
