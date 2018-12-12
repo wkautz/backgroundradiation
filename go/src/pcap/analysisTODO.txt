@@ -1,0 +1,10 @@
+Note the most common ports targeted - give stats on ports targeted
+graph amount of packets per destination - give stats on destinations
+graph amount of packets per source - give stats on sources
+
+
+
+check for one-flows (ipsrc -> 1 destination and 1 port) -> give stats on one-flows
+
+
+This is the analysis that we have left.
