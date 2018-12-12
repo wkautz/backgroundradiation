@@ -475,7 +475,8 @@ func main() {
 	netMapUnique = make(map[string]uint16)
 	backscatterUnique = make(map[uint16]string)
 	backscatterMap = make(map[uint16]map[string]int)
-	// Open file instead of device
+	nothing := set.New(set.NonThreadSafe)
+        // Open file instead of device
 	//START LOOP
 	for i := 0; i < 4; i++ {
 		pcapFileInput := ""
@@ -539,11 +540,16 @@ func main() {
 				tcp, _ := tcpLayer.(*layers.TCP)
 
 				var dstTCPPort = tcp.DstPort
-
-				testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
-				testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
-				testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST)
-				/*
+                                b := false
+				if testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {b = true}
+				if testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {b = true}
+				if testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {b = true}
+				if !b {
+                                   srcIP := strconv.Itoa(int(binary.LittleEndian.Uint16(ipSrc)))
+                                   newPacketInfo := stringifyNot(srcIP, strconv.Itoa(int(binary.LittleEndian.Uint16(ipDst))), strconv.Itoa(int(dstTCPPort)))
+                                   nothing.Add(newPacketInfo)
+                                }
+                                /*
 					type TCP struct {
 					BaseLayer
 					SrcPort, DstPort                           TCPPort
@@ -651,8 +657,9 @@ func main() {
 		}
 	}
 	intermediate := set.Intersection(nonPortScan, nonNetworkScan)
-	finalSet := set.Intersection(intermediate, nonBackscatter)
-	f, _ := os.Create("otherPacks.txt")
+	almostFinalSet := set.Intersection(intermediate, nonBackscatter)
+	finalSet := set.Union(almostFinalSet, nothing)
+        f, _ := os.Create("otherPacks.txt")
 	defer f.Close()
 	fmt.Printf("%d", finalSet.Size())
 	for !finalSet.IsEmpty() {
