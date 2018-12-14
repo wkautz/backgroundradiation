@@ -27,9 +27,9 @@ var (
 	count  int
 )
 
-const PORT_SCAN_CUTOFF = 30
-const NET_SCAN_CUTOFF = 6
-const BACKSCATTER_CUTOFF = 30
+const PORT_SCAN_CUTOFF = 40
+const NET_SCAN_CUTOFF = 8
+const BACKSCATTER_CUTOFF = 40
 
 func stringCounter(num uint16, count uint16) string {
 	countStr := strconv.Itoa(int(count))
@@ -200,7 +200,7 @@ func printPortScanStats() bool {
 		for _, v1 := range v {
 			countPackets += v1
 		}
-		freqMap[len(v)]+=countPackets
+		freqMap[len(v)]++ //countPackets
 		//fmt.Printf("\t and %d packets\n", countPackets)
 		//}
 	}
@@ -317,7 +317,7 @@ func printNetScanStats() bool {
 		for _, v1 := range v {
 			counter += v1
 		}
-		freqMap[len(v)] += counter
+		freqMap[len(v)]++ //= counter
 	}
 	return true
 }
@@ -425,7 +425,7 @@ func printBackscatterStats() bool {
 		for _, v1 := range v {
 			counter += v1
 		}
-		freqMap[len(v)]+=counter
+		freqMap[len(v)]++ //= counter
 		//fmt.Printf("\t and %d packets\n", counter)
 
 		//}
@@ -476,7 +476,7 @@ func main() {
 	backscatterUnique = make(map[uint16]string)
 	backscatterMap = make(map[uint16]map[string]int)
 	nothing := set.New(set.NonThreadSafe)
-        // Open file instead of device
+	// Open file instead of device
 	//START LOOP
 	for i := 0; i < 4; i++ {
 		pcapFileInput := ""
@@ -540,16 +540,22 @@ func main() {
 				tcp, _ := tcpLayer.(*layers.TCP)
 
 				var dstTCPPort = tcp.DstPort
-                                b := false
-				if testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {b = true}
-				if testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {b = true}
-				if testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {b = true}
+				b := false
+				if testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {
+					b = true
+				}
+				if testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {
+					b = true
+				}
+				if testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {
+					b = true
+				}
 				if !b {
-                                   srcIP := strconv.Itoa(int(binary.LittleEndian.Uint16(ipSrc)))
-                                   newPacketInfo := stringifyNot(srcIP, strconv.Itoa(int(binary.LittleEndian.Uint16(ipDst))), strconv.Itoa(int(dstTCPPort)))
-                                   nothing.Add(newPacketInfo)
-                                }
-                                /*
+					srcIP := strconv.Itoa(int(binary.LittleEndian.Uint16(ipSrc)))
+					newPacketInfo := stringifyNot(srcIP, strconv.Itoa(int(binary.LittleEndian.Uint16(ipDst))), strconv.Itoa(int(dstTCPPort)))
+					nothing.Add(newPacketInfo)
+				}
+				/*
 					type TCP struct {
 					BaseLayer
 					SrcPort, DstPort                           TCPPort
@@ -585,15 +591,15 @@ func main() {
 	//END
 	//BEGINNING OF STATS PRINTING
 	printBackscatterStats()
-	printFreqMap("backscattercounts.txt")
+	printFreqMap("backscattercounts1.txt")
 
 	freqMap = make(map[int]int)
 	printPortScanStats()
-	printFreqMap("portscancounts.txt")
+	printFreqMap("portscancounts1.txt")
 
 	freqMap = make(map[int]int)
 	printNetScanStats()
-	printFreqMap("netscancounts.txt")
+	printFreqMap("netscancounts1.txt")
 	//END OF STATS PRINTING
 	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
@@ -656,10 +662,12 @@ func main() {
 			//nonBackscatter.Add(newPacketInfo)
 		}
 	}
-	intermediate := set.Intersection(nonPortScan, nonNetworkScan)
+
+	//finalSet := set.Intersection(nonPortScan, nonNetworkScan, nonBackscatter, nothing)
+	intermediate := set.Intersection(nonPortScan, nonNetworkScan) //Is this what we want?
 	almostFinalSet := set.Intersection(intermediate, nonBackscatter)
 	finalSet := set.Union(almostFinalSet, nothing)
-        f, _ := os.Create("otherPacks.txt")
+	f, _ := os.Create("otherPacks.txt")
 	defer f.Close()
 	fmt.Printf("%d", finalSet.Size())
 	for !finalSet.IsEmpty() {
@@ -673,4 +681,6 @@ func main() {
 			fmt.Println("BAD2\n")
 		}
 	}
+
+	fmt.Printf("Total packets: %d", count)
 }
