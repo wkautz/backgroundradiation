@@ -76,6 +76,8 @@ func stringifyFlags(SYN bool, FIN bool, ACK bool, RST bool) string {
 }
 
 */
+
+
 func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
 	dstIPint := 0
 	if dstIP != nil {
@@ -100,9 +102,12 @@ func getDPortIP(packetInfo string) string {
 /* ===================== Map Data Structures ====================== */
 
 // (IPSrc, IPDest) -> Port Num -> #hits
+// Maps (TCP Flow) to (Map from Port Number to Hits)
 var portMap map[string]map[uint16]int
 
 // (IPSrc, IPDest) -> Port Num
+// Maps from TCP Flow to Port that is hit
+// TODO: Why do we need this?
 var portMapUnique map[string]string
 
 // ()
@@ -435,9 +440,11 @@ func printBackscatterStats() bool {
 
 /* ========================= Main Loop ========================== */
 
+/* TODO: what is the point of this function and the flagMap at all? */
 func testFlags(FIN bool, ACK bool, SYN bool, RST bool, srcIP net.IP) {
 	var bitarray uint64
 
+	/* TODO: look at this garbage. Is there no OS-based function for flipping to host order? */
 	val := string(strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))))
 
 	if FIN {
@@ -463,6 +470,11 @@ func testFlags(FIN bool, ACK bool, SYN bool, RST bool, srcIP net.IP) {
 	flagMap[val][bitarray]++
 
 }
+
+/* TODO: 
+	Document the structs for ICMP and UDP.
+	Use these structs to try to build the nonTCP versions of all functions
+*/
 
 func main() {
 
@@ -496,7 +508,6 @@ func main() {
 		defer handle.Close()
 
 		// Loop through packets in file
-		//ALSO NEED TO LOOP OVER ALL THE FILES
 		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
 		for packet := range packetSource.Packets() {
@@ -518,8 +529,9 @@ func main() {
 			ipLayer := packet.Layer(layers.LayerTypeIPv4)
 			var ipSrc net.IP
 			var ipDst net.IP
+
+			// HAS AN IP LAYER
 			if ipLayer != nil {
-				//fmt.Println("IPv4 Layer Detected.")
 				ip, _ := ipLayer.(*layers.IPv4)
 
 				//IP layer variables:
@@ -536,10 +548,15 @@ func main() {
 			}
 
 			tcpLayer := packet.Layer(layers.LayerTypeTCP)
+
+			// TODO: Is this empty for UDP?
 			if tcpLayer != nil {
 				tcp, _ := tcpLayer.(*layers.TCP)
 
 				var dstTCPPort = tcp.DstPort
+
+				//TODO: what is b?
+				//b is true if this packet was part of an attack
 				b := false
 				if testPortScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {
 					b = true
@@ -547,12 +564,15 @@ func main() {
 				if testNetworkScanTCP(ipSrc, ipDst, dstTCPPort, tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {
 					b = true
 				}
+
+				//dos, not important for this paper
 				if testBackscatterTCP(ipSrc, ipDst, uint16(dstTCPPort), tcp.FIN, tcp.ACK, tcp.SYN, tcp.RST) {
 					b = true
 				}
 				if !b {
 					srcIP := strconv.Itoa(int(binary.LittleEndian.Uint16(ipSrc)))
 					newPacketInfo := stringifyNot(srcIP, strconv.Itoa(int(binary.LittleEndian.Uint16(ipDst))), strconv.Itoa(int(dstTCPPort)))
+					//nothing is the set of packets that were not part of an attack
 					nothing.Add(newPacketInfo)
 				}
 				/*
@@ -575,16 +595,18 @@ func main() {
 
 			}
 
-			/*udpLayer := packet.Layer(layers.LayerTypeUDP)
+			udpLayer := packet.Layer(layers.LayerTypeUDP)
 			if udpLayer != nil {
+				/* UDP Packet, TODO: what do we want to do with this? */
 				udp, _ := udpLayer.(*layers.UDP)
 
 				dstUDPPort := udp.DstPort
 
+				//TODO: adapt TCP functions for UDP
 				//testPortScanUDP(ipSrc, ipDst, dstPort)
 				//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
 				//testBackscatterUDP(ipSrc)
-			}*/
+			}
 
 		}
 	}
@@ -600,10 +622,14 @@ func main() {
 	freqMap = make(map[int]int)
 	printNetScanStats()
 	printFreqMap("netscancounts1.txt")
+
+
+	/* Beginning of nothing stats */
 	//END OF STATS PRINTING
 	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
 	nonBackscatter := set.New(set.NonThreadSafe)
+	
 	/* Filter Port */
 	for k, v := range portMap {
 		if len(v) < PORT_SCAN_CUTOFF {
@@ -681,6 +707,8 @@ func main() {
 			fmt.Println("BAD2\n")
 		}
 	}
+
+	/* End of nothing stats */
 
 	fmt.Printf("Total packets: %d", count)
 }
