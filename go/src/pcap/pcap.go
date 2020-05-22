@@ -27,28 +27,34 @@ var (
 	count  int
 )
 
+/* TODO: Make these more official cutoffs. Paper gives good ideas */
 const PORT_SCAN_CUTOFF = 40
 const NET_SCAN_CUTOFF = 8
 const BACKSCATTER_CUTOFF = 40
 
+/* "num;count" for some reason */
 func stringCounter(num uint16, count uint16) string {
 	countStr := strconv.Itoa(int(count))
 	return strconv.Itoa(int(num)) + ";" + countStr
 }
 
+/* From "num;count" pulls out num */
 func getData(thing string) string {
 	return strings.Split(thing, ";")[0]
 }
 
+/* From "num;count" pulls out count */
 func getCount(thing string) uint16 {
 	counter, _ := strconv.Atoi(strings.Split(thing, ";")[1])
 	return uint16(counter)
 }
 
+/* Takes all arguments as strings to create "srcIP;dstIP;dPort" as a string */
 func stringifyNot(srcIP string, dstIP string, dPort string) string {
 	return srcIP + ";" + dstIP + ";" + dPort
 }
 
+/* Serializes the flags, if needed */
 /*
 func stringifyFlags(SYN bool, FIN bool, ACK bool, RST bool) string {
      result := ""
@@ -78,6 +84,7 @@ func stringifyFlags(SYN bool, FIN bool, ACK bool, RST bool) string {
 */
 
 
+/* Takes inputs as they are found in the packet, to create "srcIP;dstIP;dPort" */
 func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
 	dstIPint := 0
 	if dstIP != nil {
@@ -87,6 +94,7 @@ func stringify(srcIP net.IP, dstIP net.IP, dPort uint16) string {
 	return strconv.Itoa(int(binary.LittleEndian.Uint16(srcIP))) + ";" + strconv.Itoa(dstIPint) + ";" + strconv.Itoa(int(dPort))
 }
 
+/* String: "srcIP;dstIP;dPort" */
 func getSrcIP(packetInfo string) string {
 	return strings.Split(packetInfo, ";")[0]
 }
@@ -103,6 +111,7 @@ func getDPortIP(packetInfo string) string {
 
 // (IPSrc, IPDest) -> Port Num -> #hits
 // Maps (TCP Flow) to (Map from Port Number to Hits)
+// To identity port scan 
 var portMap map[string]map[uint16]int
 
 // (IPSrc, IPDest) -> Port Num
@@ -137,6 +146,7 @@ func testPortScanTCP(srcIP net.IP, dstIP net.IP, dstPort layers.TCPPort, FIN boo
 	}
 	//flagInfo := stringifyFlags(SYN, FIN, ACK, RST)
 	//type := "tcp"
+	/* TODO: Do we need more than this to identify a packet? */
 	packetInfo := stringify(srcIP, dstIP, 0)
 
 	/*
@@ -330,9 +340,10 @@ func printNetScanStats() bool {
 /* ==================== Backscatter ========================= */
 
 func testBackscatterTCP(srcIP net.IP, dstIP net.IP, dPort uint16, FIN bool, ACK bool, SYN bool, RST bool) bool {
-	//must pass the flags into this method and check here
+	// must pass the flags into this method and check here
 	if (SYN && ACK) || (ACK) || (RST) || (RST && ACK) {
-		//do nothing, this is the good case
+		// do nothing, this is the good case
+		// just didn't want to do the negation
 	} else {
 		return false
 	}
