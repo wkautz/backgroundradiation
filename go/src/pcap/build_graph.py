@@ -18,8 +18,9 @@ def main():
     plt.ylabel('Frequency of Port Scan Size')
 
     plt.grid()
-    plt.savefig('portscancounts.png')
+    
     plt.xscale("log")
+    plt.savefig('portscancounts.png')
     plt.show()
 
 if __name__ == '__main__':
