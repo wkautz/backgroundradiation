@@ -13,7 +13,7 @@ def build_arrays():
 def main():
     num_ports, frequencies = build_arrays()
 
-    plt.plot(num_ports, frequencies, 'go-')
+    plt.plot(num_ports, frequencies, 'g-')
     plt.xlabel('Number of Ports Scanned')
     plt.ylabel('Frequency of Port Scan Size')
 
