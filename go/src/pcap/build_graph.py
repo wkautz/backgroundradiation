@@ -5,7 +5,7 @@ def build_arrays():
     frequencies = []
     with open('portscancounts1.txt', 'r') as f:
         for line in f:
-            arr = line.split(";")
+            arr = line.strip().split(",")
             num_ports.append(int(arr[0]))
             frequencies.append(int(arr[1]))
     return num_ports, frequencies
@@ -19,6 +19,7 @@ def main():
 
     plt.grid()
     plt.savefig('portscancounts.png')
+    plt.xscale("log")
     plt.show()
 
 if __name__ == '__main__':
