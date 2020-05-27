@@ -17,10 +17,10 @@ import (
 )
 
 var (
-	pcapFile  string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.00.pcap"
-	pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
-	pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
-	pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
+	pcapFile  string = "/Users/dillonfranke/Downloads/2018-10-30.00.pcap"
+	// pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
+	// pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
+	// pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
 	//pcapFile string = "/home/wkautz/pcap_file"
 	handle *pcap.Handle
 	err    error
@@ -471,12 +471,27 @@ func testFlags(FIN bool, ACK bool, SYN bool, RST bool, srcIP net.IP) {
 
 }
 
+func getTimestampDiff(packet1 gopacket.Packet, packet2 gopacket.Packet) {
+	packetType := fmt.Sprintf("%T", packet1.Metadata().Timestamp)
+	fmt.Println(packetType)
+
+	// Type: time.Time
+	start := packet1.Metadata().Timestamp
+	end := packet2.Metadata().Timestamp
+
+	difference := end.Sub(start)
+
+	fmt.Printf("Diff: %v\n", difference)
+}
+
 /* TODO: 
 	Document the structs for ICMP and UDP.
 	Use these structs to try to build the nonTCP versions of all functions
 */
 
 func main() {
+
+	fmt.Printf("hello!")
 
 	count = 0
 	freqMap = make(map[int]int)
@@ -491,16 +506,17 @@ func main() {
 	// Open file instead of device
 	//START LOOP
 	for i := 0; i < 4; i++ {
-		pcapFileInput := ""
-		if i == 0 {
-			pcapFileInput = pcapFile
-		} else if i == 1 {
-			pcapFileInput = pcapFile1
-		} else if i == 2 {
-			pcapFileInput = pcapFile2
-		} else {
-			pcapFileInput = pcapFile3
-		}
+		// pcapFileInput := ""
+		// if i == 0 {
+		// 	pcapFileInput = pcapFile
+		// // } else if i == 1 {
+		// // 	pcapFileInput = pcapFile1
+		// // } else if i == 2 {
+		// // 	pcapFileInput = pcapFile2
+		// // } else {
+		// // 	pcapFileInput = pcapFile3
+		// }
+		pcapFileInput := pcapFile
 		handle, err = pcap.OpenOffline(pcapFileInput)
 		if err != nil {
 			log.Fatal(err)
@@ -515,6 +531,7 @@ func main() {
 			if count%1000000 == 0 {
 				fmt.Printf("%d packets\n", count)
 			}
+
 			//if count == 10000000 {
 			//   break
 			//}
@@ -524,6 +541,15 @@ func main() {
 			}*/
 
 			//fmt.Println("=====================")
+
+			/*********** Get Timestamp Difference ***********/
+			// fmt.Println("%s", getTimestampDiff(packet, packet))
+
+			// getTimestampDiff(packet, packet)
+			// fmt.Println("%s", getTimestampDiff(packet, packet))
+
+			getTimestampDiff(packet, packet)
+			return
 
 			//Get IPv4 Layer
 			ipLayer := packet.Layer(layers.LayerTypeIPv4)
@@ -595,18 +621,18 @@ func main() {
 
 			}
 
-			udpLayer := packet.Layer(layers.LayerTypeUDP)
-			if udpLayer != nil {
-				/* UDP Packet, TODO: what do we want to do with this? */
-				udp, _ := udpLayer.(*layers.UDP)
+			// udpLayer := packet.Layer(layers.LayerTypeUDP)
+			// if udpLayer != nil {
+			// 	/* UDP Packet, TODO: what do we want to do with this? */
+			// 	udp, _ := udpLayer.(*layers.UDP)
 
-				dstUDPPort := udp.DstPort
+			// 	dstUDPPort := udp.DstPort
 
-				//TODO: adapt TCP functions for UDP
-				//testPortScanUDP(ipSrc, ipDst, dstPort)
-				//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
-				//testBackscatterUDP(ipSrc)
-			}
+			// 	//TODO: adapt TCP functions for UDP
+			// 	//testPortScanUDP(ipSrc, ipDst, dstPort)
+			// 	//testNetworkScanUDP(ipSrc, ipDst, dstUDPPort)
+			// 	//testBackscatterUDP(ipSrc)
+			// }
 
 		}
 	}
