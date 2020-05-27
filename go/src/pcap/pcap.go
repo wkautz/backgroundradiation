@@ -543,13 +543,7 @@ func main() {
 			//fmt.Println("=====================")
 
 			/*********** Get Timestamp Difference ***********/
-			// fmt.Println("%s", getTimestampDiff(packet, packet))
-
-			// getTimestampDiff(packet, packet)
-			// fmt.Println("%s", getTimestampDiff(packet, packet))
-
 			getTimestampDiff(packet, packet)
-			return
 
 			//Get IPv4 Layer
 			ipLayer := packet.Layer(layers.LayerTypeIPv4)
