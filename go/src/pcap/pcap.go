@@ -9,7 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	"sync"
+	//"sync/atomic"
 	"github.com/fatih/set"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -17,14 +18,17 @@ import (
 )
 
 var (
-	pcapFile  string = "/Users/dillonfranke/Downloads/2018-10-30.00.pcap"
+	// pcapFile  string = "/Users/dillonfranke/Downloads/2018-10-30.00.pcap"
 	// pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
 	// pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
 	// pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
-	//pcapFile string = "/home/wkautz/pcap_file"
+	pcapFile string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.00.pcap"
+	pcapFile1 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.01.pcap"
+	pcapFile2 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.02.pcap"
+	pcapFile3 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.03.pcap"
 	handle *pcap.Handle
 	err    error
-	count  int
+	count  uint64
 )
 
 const PORT_SCAN_CUTOFF = 40
@@ -103,6 +107,8 @@ func getDPortIP(packetInfo string) string {
 
 // IPSrc -> Port -> # hits
 var scanMap map[uint16]map[int]int
+//var scanMapConcurrent sync.Map
+var scanMut sync.Mutex
 
 // (IPSrc, IPDest) -> Port Num -> #hits
 // Maps (TCP Flow) to (Map from Port Number to Hits)
@@ -117,6 +123,7 @@ var portMapUnique map[string]string
 var netMap map[string]map[uint16]int
 var netMapUnique map[string]uint16
 var freqMap map[int]int
+var mut sync.Mutex
 
 // IPSrc -> array (contains # of times certain flag params have been seen)
 var flagMap map[string][]uint16
@@ -158,8 +165,8 @@ func testFlags(FIN bool, ACK bool, SYN bool, RST bool, srcIP net.IP) {
 }
 
 func packetRateGood(packet1 gopacket.Packet, packet2 gopacket.Packet) (bool) {
-	packetType := fmt.Sprintf("%T", packet1.Metadata().Timestamp)
-	fmt.Println(packetType)
+	// packetType := fmt.Sprintf("%T", packet1.Metadata().Timestamp)
+	//fmt.Println(packetType)
 
 	// Type: time.Time
 	start := packet1.Metadata().Timestamp
@@ -167,7 +174,7 @@ func packetRateGood(packet1 gopacket.Packet, packet2 gopacket.Packet) (bool) {
 
 	difference := end.Sub(start)
 
-	fmt.Printf("Diff: %v\n", difference)
+	//fmt.Printf("Diff: %v\n", difference)
 
 	goalDuration, err := time.ParseDuration("100ms")
 	if err != err {
@@ -175,6 +182,135 @@ func packetRateGood(packet1 gopacket.Packet, packet2 gopacket.Packet) (bool) {
 	}
 
 	return difference < goalDuration
+}
+
+
+func handlePackets(filename string, wg *sync.WaitGroup) {
+	var previousPacket gopacket.Packet
+	count = 0
+	pcapFileInput := filename
+	handle, err = pcap.OpenOffline(pcapFileInput)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer handle.Close()
+
+	// Loop through packets in file
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	local_count := 0
+	for packet := range packetSource.Packets() {
+		//fmt.Printf("loop")
+		// We need to skip the first packet so we can calculate a timestamp
+		if local_count == 0 {
+			//atomic.AddUint64(&count, 1)
+			mut.Lock()
+			count++
+			mut.Unlock()
+			local_count++
+			previousPacket = packet
+			continue
+		}
+
+		// Increment packet counter
+		//atomic.AddUint64(&count, 1)
+		mut.Lock()
+		count++
+		mut.Unlock()
+		local_count++
+
+		// Nicely prints out which packet we are at in processing
+		if count%1000000 == 0 {
+			fmt.Printf("%d packets\n", count)
+		}
+
+		/*********** Check for Scan ***********/
+		if packetRateGood(previousPacket, packet) {
+			// Then we get the IP information
+			//fmt.Println("Packet Rate is Good")
+			//Get IPv4 Layer
+			ipLayer := packet.Layer(layers.LayerTypeIPv4)
+			var ipSrc net.IP
+
+			// HAS AN IP LAYER
+			if ipLayer != nil {
+				ip, _ := ipLayer.(*layers.IPv4)
+
+				//IP layer variables:
+				//Version (Either 4 or 6)
+				//IHL (IP Header Length in 32-bit words)
+				//TOS, Length, ID, Flages, FragOffset, TTL, Protocol (TCP?, etc.),
+				//Checksum, SrcIP, DstIP
+				//fmt.Printf("Source IP: %s\n", ip.SrcIP)
+				//fmt.Printf("Destin IP: %s\n", ip.DstIP)
+				//fmt.Printf("Protocol: %s\n", ip.Protocol)
+
+				ipSrc = ip.SrcIP
+			}
+
+			tcpLayer := packet.Layer(layers.LayerTypeTCP)
+
+			// Get Destination port from TCP layer
+			if tcpLayer != nil {
+				tcp, _ := tcpLayer.(*layers.TCP)
+				var dstTCPPort = tcp.DstPort
+			
+				// We've found a new ipSrc, and it might be part of a new scan
+				scanMut.Lock()
+				if scanMap[binary.LittleEndian.Uint16(ipSrc)] == nil {
+					newIPEntry := make(map[int]int)
+					newIPEntry[int(dstTCPPort)] = 1
+					scanMap[binary.LittleEndian.Uint16(ipSrc)] = newIPEntry
+				} else { // We're adding to scan data
+					scanMap[binary.LittleEndian.Uint16(ipSrc)][int(dstTCPPort)]++
+				}
+				scanMut.Unlock()
+				/*oldIPEntry, _ := scanMapConcurrent.Load(binary.LittleEndian.Uint16(ipSrc))
+				if oldIPEntry == nil {
+					var newIPEntry sync.Map
+					newIPEntry.Store(int(dstTCPPort), 1)
+					scanMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), newIPEntry)
+				} else { // We're adding to scan data
+					oldIPEntryValue, _ := oldIPEntry.Load(int(dstTCPPort))
+					oldIPEntry.Store(int(dstTCPPort), oldIPEntryValue + 1)
+					scanMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), oldIPEntry)
+				}*/
+			}
+		} else {
+			//fmt.Println("Skipping...")
+		}
+
+		previousPacket = packet
+
+		/*if count == 20 {
+			for k, v := range scanMap {
+				fmt.Println(k)
+				fmt.Println(v)
+			}
+			return
+		}*/
+
+		
+			/*
+				type TCP struct {
+				BaseLayer
+				SrcPort, DstPort                           TCPPort
+				Seq                                        uint32
+				Ack                                        uint32
+				DataOffset                                 uint8
+				FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS bool
+				Window                                     uint16
+				Checksum                                   uint16
+				Urgent                                     uint16
+				sPort, dPort                               []byte
+				Options                                    []TCPOption
+				Padding                                    []byte
+				opts                                       [4]TCPOption
+				tcpipchecksum
+			*/
+
+		
+	}
+	wg.Done()
 }
 
 /* TODO: 
@@ -186,8 +322,8 @@ func main() {
 
 	fmt.Printf("hello!")
 
-	count = 0
-	var previousPacket gopacket.Packet
+	//count = 0
+	//var previousPacket gopacket.Packet
 	freqMap = make(map[int]int)
 	netMap = make(map[string]map[uint16]int)
 	scanMap = make(map[uint16]map[int]int)
@@ -199,9 +335,7 @@ func main() {
 	backscatterMap = make(map[uint16]map[string]int)
 	nothing := set.New(set.NonThreadSafe)
 	// Open file instead of device
-	//START LOOP
-	for i := 0; i < 4; i++ {
-		// pcapFileInput := ""
+
 		// if i == 0 {
 		// 	pcapFileInput = pcapFile
 		// // } else if i == 1 {
@@ -210,110 +344,16 @@ func main() {
 		// // 	pcapFileInput = pcapFile2
 		// // } else {
 		// // 	pcapFileInput = pcapFile3
-		// }
-		pcapFileInput := pcapFile
-		handle, err = pcap.OpenOffline(pcapFileInput)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer handle.Close()
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(4)
 
-		// Loop through packets in file
-		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-
-		for packet := range packetSource.Packets() {
-			// We need to skip the first packet so we can calculate a timestamp
-			if count == 0 {
-				count++
-				previousPacket = packet
-				continue
-			}
-
-			// Increment packet counter
-			count++
-
-			// Nicely prints out which packet we are at in processing
-			if count%1000000 == 0 {
-				fmt.Printf("%d packets\n", count)
-			}
-
-			/*********** Check for Scan ***********/
-			if packetRateGood(previousPacket, packet) {
-				// Then we get the IP information
-				fmt.Println("Packet Rate is Good")
-				//Get IPv4 Layer
-				ipLayer := packet.Layer(layers.LayerTypeIPv4)
-				var ipSrc net.IP
-
-				// HAS AN IP LAYER
-				if ipLayer != nil {
-					ip, _ := ipLayer.(*layers.IPv4)
-
-					//IP layer variables:
-					//Version (Either 4 or 6)
-					//IHL (IP Header Length in 32-bit words)
-					//TOS, Length, ID, Flages, FragOffset, TTL, Protocol (TCP?, etc.),
-					//Checksum, SrcIP, DstIP
-					//fmt.Printf("Source IP: %s\n", ip.SrcIP)
-					//fmt.Printf("Destin IP: %s\n", ip.DstIP)
-					//fmt.Printf("Protocol: %s\n", ip.Protocol)
-
-					ipSrc = ip.SrcIP
-				}
-
-				tcpLayer := packet.Layer(layers.LayerTypeTCP)
-
-				// Get Destination port from TCP layer
-				if tcpLayer != nil {
-					tcp, _ := tcpLayer.(*layers.TCP)
-					var dstTCPPort = tcp.DstPort
-				
-					// We've found a new ipSrc, and it might be part of a new scan
-					if scanMap[binary.LittleEndian.Uint16(ipSrc)] == nil {
-						newIPEntry := make(map[int]int)
-						newIPEntry[int(dstTCPPort)] = 1
-						scanMap[binary.LittleEndian.Uint16(ipSrc)] = newIPEntry
-					} else { // We're adding to scan data
-						scanMap[binary.LittleEndian.Uint16(ipSrc)][int(dstTCPPort)]++
-					}
-				}
-			} else {
-				fmt.Println("Skipping...")
-			}
-
-			previousPacket = packet
-
-			if count == 20 {
-				for k, v := range scanMap {
-					fmt.Println(k)
-					fmt.Println(v)
-				}
-				return
-			}
-
-			
-				/*
-					type TCP struct {
-					BaseLayer
-					SrcPort, DstPort                           TCPPort
-					Seq                                        uint32
-					Ack                                        uint32
-					DataOffset                                 uint8
-					FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS bool
-					Window                                     uint16
-					Checksum                                   uint16
-					Urgent                                     uint16
-					sPort, dPort                               []byte
-					Options                                    []TCPOption
-					Padding                                    []byte
-					opts                                       [4]TCPOption
-					tcpipchecksum
-				*/
-
-			
-		}
-	}
-	//END
+	go handlePackets(pcapFile, &waitGroup)
+	go handlePackets(pcapFile1, &waitGroup)
+	go handlePackets(pcapFile2, &waitGroup)
+	go handlePackets(pcapFile3, &waitGroup)
+	//START LOOP
+	waitGroup.Wait()
+	fmt.Printf("waited")
 	//BEGINNING OF STATS PRINTING
 
 
