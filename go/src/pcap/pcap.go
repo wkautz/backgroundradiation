@@ -107,6 +107,8 @@ func getDPortIP(packetInfo string) string {
 
 // IPSrc -> Port -> # hits
 var scanMap map[uint16]map[int]int
+// TODO: add map that counts unique ip destinations as well
+// This map counts port destinations, but not ip dests. need both to classify scans and scan size
 //var scanMapConcurrent sync.Map
 var scanMut sync.Mutex
 
