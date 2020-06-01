@@ -18,14 +18,14 @@ import (
 )
 
 var (
-	// pcapFile  string = "/Users/dillonfranke/Downloads/2018-10-30.00.pcap"
+	pcapFile  string = "/Users/dillonfranke/Downloads/2018-10-30.00.pcap"
 	// pcapFile1 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.01.pcap"
-	// pcapFile2 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.02.pcap"
+	pcapFile1 string = "/Users/dillonfranke/Downloads/2018-10-30.01.pcap"
 	// pcapFile3 string = "/Volumes/SANDISK256/PCap_Data/2018-10-30.03.pcap"
-	pcapFile string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.00.pcap"
-	pcapFile1 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.01.pcap"
-	pcapFile2 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.02.pcap"
-	pcapFile3 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.03.pcap"
+	// pcapFile string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.00.pcap"
+	// pcapFile1 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.01.pcap"
+	// pcapFile2 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.02.pcap"
+	// pcapFile3 string = "/Users/wilhemkautz/Documents/classes/cs244/2018-10-30.03.pcap"
 	handle *pcap.Handle
 	err    error
 	count  uint64
@@ -105,11 +105,11 @@ func getDPortIP(packetInfo string) string {
 
 /* ===================== Map Data Structures ====================== */
 
-// IPSrc -> Port -> # hits
-var scanMap map[uint16]map[int]int
+// IPSrc -> Port -> # hits w/ zMap
+var zMapMap map[uint16]map[int]int
 // TODO: add map that counts unique ip destinations as well
 // This map counts port destinations, but not ip dests. need both to classify scans and scan size
-//var scanMapConcurrent sync.Map
+//var zMapMapConcurrent sync.Map
 var scanMut sync.Mutex
 
 // (IPSrc, IPDest) -> Port Num -> #hits
@@ -187,6 +187,32 @@ func packetRateGood(packet1 gopacket.Packet, packet2 gopacket.Packet) (bool) {
 }
 
 
+func checkZMap(ipSrc net.IP, dstTCPPort layers.TCPPort, ipId uint16) {
+	if (ipId == 54321) {
+		// We've found a new ipSrc, and it might be part of a new scan
+		scanMut.Lock()
+		if zMapMap[binary.LittleEndian.Uint16(ipSrc)] == nil {
+			newIPEntry := make(map[int]int)
+			newIPEntry[int(dstTCPPort)] = 1
+			zMapMap[binary.LittleEndian.Uint16(ipSrc)] = newIPEntry
+		} else { // We're adding to scan data
+			zMapMap[binary.LittleEndian.Uint16(ipSrc)][int(dstTCPPort)]++
+		}
+		scanMut.Unlock()
+		/*oldIPEntry, _ := zMapMapConcurrent.Load(binary.LittleEndian.Uint16(ipSrc))
+		if oldIPEntry == nil {
+			var newIPEntry sync.Map
+			newIPEntry.Store(int(dstTCPPort), 1)
+			zMapMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), newIPEntry)
+		} else { // We're adding to scan data
+			oldIPEntryValue, _ := oldIPEntry.Load(int(dstTCPPort))
+			oldIPEntry.Store(int(dstTCPPort), oldIPEntryValue + 1)
+			zMapMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), oldIPEntry)
+		}*/
+	}
+}
+
+
 func handlePackets(filename string, wg *sync.WaitGroup) {
 	var previousPacket gopacket.Packet
 	count = 0
@@ -204,7 +230,6 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 		//fmt.Printf("loop")
 		// We need to skip the first packet so we can calculate a timestamp
 		if local_count == 0 {
-			//atomic.AddUint64(&count, 1)
 			mut.Lock()
 			count++
 			mut.Unlock()
@@ -214,7 +239,6 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 		}
 
 		// Increment packet counter
-		//atomic.AddUint64(&count, 1)
 		mut.Lock()
 		count++
 		mut.Unlock()
@@ -228,10 +252,11 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 		/*********** Check for Scan ***********/
 		if packetRateGood(previousPacket, packet) {
 			// Then we get the IP information
-			//fmt.Println("Packet Rate is Good")
-			//Get IPv4 Layer
+			// Get IPv4 Layer
 			ipLayer := packet.Layer(layers.LayerTypeIPv4)
 			var ipSrc net.IP
+			var ipId uint16
+			
 
 			// HAS AN IP LAYER
 			if ipLayer != nil {
@@ -245,7 +270,7 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 				//fmt.Printf("Source IP: %s\n", ip.SrcIP)
 				//fmt.Printf("Destin IP: %s\n", ip.DstIP)
 				//fmt.Printf("Protocol: %s\n", ip.Protocol)
-
+				ipId = ip.Id
 				ipSrc = ip.SrcIP
 			}
 
@@ -256,40 +281,14 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 				tcp, _ := tcpLayer.(*layers.TCP)
 				var dstTCPPort = tcp.DstPort
 			
-				// We've found a new ipSrc, and it might be part of a new scan
-				scanMut.Lock()
-				if scanMap[binary.LittleEndian.Uint16(ipSrc)] == nil {
-					newIPEntry := make(map[int]int)
-					newIPEntry[int(dstTCPPort)] = 1
-					scanMap[binary.LittleEndian.Uint16(ipSrc)] = newIPEntry
-				} else { // We're adding to scan data
-					scanMap[binary.LittleEndian.Uint16(ipSrc)][int(dstTCPPort)]++
-				}
-				scanMut.Unlock()
-				/*oldIPEntry, _ := scanMapConcurrent.Load(binary.LittleEndian.Uint16(ipSrc))
-				if oldIPEntry == nil {
-					var newIPEntry sync.Map
-					newIPEntry.Store(int(dstTCPPort), 1)
-					scanMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), newIPEntry)
-				} else { // We're adding to scan data
-					oldIPEntryValue, _ := oldIPEntry.Load(int(dstTCPPort))
-					oldIPEntry.Store(int(dstTCPPort), oldIPEntryValue + 1)
-					scanMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), oldIPEntry)
-				}*/
+				/******** zMap Check *********/
+				checkZMap(ipSrc, dstTCPPort, ipId)
 			}
 		} else {
-			//fmt.Println("Skipping...")
+			fmt.Println("Skipping...")
 		}
 
 		previousPacket = packet
-
-		/*if count == 20 {
-			for k, v := range scanMap {
-				fmt.Println(k)
-				fmt.Println(v)
-			}
-			return
-		}*/
 
 		
 			/*
@@ -322,13 +321,11 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 
 func main() {
 
-	fmt.Printf("hello!")
-
 	//count = 0
 	//var previousPacket gopacket.Packet
 	freqMap = make(map[int]int)
 	netMap = make(map[string]map[uint16]int)
-	scanMap = make(map[uint16]map[int]int)
+	zMapMap = make(map[uint16]map[int]int)
 	portMap = make(map[string]map[uint16]int)
 	portMapUnique = make(map[string]string)
 	flagMap = make(map[string][]uint16)
@@ -351,8 +348,8 @@ func main() {
 
 	go handlePackets(pcapFile, &waitGroup)
 	go handlePackets(pcapFile1, &waitGroup)
-	go handlePackets(pcapFile2, &waitGroup)
-	go handlePackets(pcapFile3, &waitGroup)
+	// go handlePackets(pcapFile2, &waitGroup)
+	// go handlePackets(pcapFile3, &waitGroup)
 	//START LOOP
 	waitGroup.Wait()
 	fmt.Printf("waited")
@@ -364,6 +361,17 @@ func main() {
 	nonPortScan := set.New(set.NonThreadSafe)
 	nonNetworkScan := set.New(set.NonThreadSafe)
 	nonBackscatter := set.New(set.NonThreadSafe)
+
+	/* zmap map printing */
+	fzmap, _ := os.Create("zMap.txt")
+	defer fzmap.Close()
+	for k, v := range zMapMap {
+		fzmap.WriteString("SrcIP: " + strconv.Itoa(int(k)) + "\n")
+		for i, j := range v {
+			fzmap.WriteString("\tPort: " + strconv.Itoa(int(i)) + "-->" + strconv.Itoa(int(j)) + "\n")
+		}
+		fzmap.WriteString("\n")
+	}
 	
 	/* Filter Port */
 	for k, v := range portMap {
