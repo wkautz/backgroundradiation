@@ -107,6 +107,10 @@ func getDPortIP(packetInfo string) string {
 
 // IPSrc -> Port -> # hits w/ zMap
 var zMapMap map[uint16]map[int]int
+
+var masscanMap map[uint16]map[int]int
+
+
 // TODO: add map that counts unique ip destinations as well
 // This map counts port destinations, but not ip dests. need both to classify scans and scan size
 //var zMapMapConcurrent sync.Map
@@ -199,16 +203,25 @@ func checkZMap(ipSrc net.IP, dstTCPPort layers.TCPPort, ipId uint16) {
 			zMapMap[binary.LittleEndian.Uint16(ipSrc)][int(dstTCPPort)]++
 		}
 		scanMut.Unlock()
-		/*oldIPEntry, _ := zMapMapConcurrent.Load(binary.LittleEndian.Uint16(ipSrc))
-		if oldIPEntry == nil {
-			var newIPEntry sync.Map
-			newIPEntry.Store(int(dstTCPPort), 1)
-			zMapMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), newIPEntry)
+	}
+}
+
+func checkMasscan(ipSrc net.IP, ipDest net.IP, dstTCPPort layers.TCPPort, ipId uint16, tcpSeqNo uint32) {
+
+	fingerprint := uint32(binary.LittleEndian.Uint16(ipDest)) ^ uint32(dstTCPPort)
+	fingerprint = fingerprint ^ tcpSeqNo
+
+	if (ipId == uint16(fingerprint)) {
+		// We've found a new ipSrc, and it might be part of a new scan
+		scanMut.Lock()
+		if masscanMap[binary.LittleEndian.Uint16(ipSrc)] == nil {
+			newIPEntry := make(map[int]int)
+			newIPEntry[int(dstTCPPort)] = 1
+			masscanMap[binary.LittleEndian.Uint16(ipSrc)] = newIPEntry
 		} else { // We're adding to scan data
-			oldIPEntryValue, _ := oldIPEntry.Load(int(dstTCPPort))
-			oldIPEntry.Store(int(dstTCPPort), oldIPEntryValue + 1)
-			zMapMapConcurrent.Store(binary.LittleEndian.Uint16(ipSrc), oldIPEntry)
-		}*/
+			masscanMap[binary.LittleEndian.Uint16(ipSrc)][int(dstTCPPort)]++
+		}
+		scanMut.Unlock()
 	}
 }
 
@@ -255,6 +268,7 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 			// Get IPv4 Layer
 			ipLayer := packet.Layer(layers.LayerTypeIPv4)
 			var ipSrc net.IP
+			var ipDest net.IP
 			var ipId uint16
 			
 
@@ -272,6 +286,7 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 				//fmt.Printf("Protocol: %s\n", ip.Protocol)
 				ipId = ip.Id
 				ipSrc = ip.SrcIP
+				ipDest = ip.DstIP
 			}
 
 			tcpLayer := packet.Layer(layers.LayerTypeTCP)
@@ -283,6 +298,7 @@ func handlePackets(filename string, wg *sync.WaitGroup) {
 			
 				/******** zMap Check *********/
 				checkZMap(ipSrc, dstTCPPort, ipId)
+				checkMasscan(ipSrc, ipDest, dstTCPPort, ipId, tcp.Seq)
 			}
 		} else {
 			fmt.Println("Skipping...")
@@ -326,6 +342,7 @@ func main() {
 	freqMap = make(map[int]int)
 	netMap = make(map[string]map[uint16]int)
 	zMapMap = make(map[uint16]map[int]int)
+	masscanMap = make(map[uint16]map[int]int)
 	portMap = make(map[string]map[uint16]int)
 	portMapUnique = make(map[string]string)
 	flagMap = make(map[string][]uint16)
