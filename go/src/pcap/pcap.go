@@ -136,7 +136,7 @@ var mut sync.Mutex
 func packetRateCheck(recent time.Time, ipSrc uint16, ipDest uint16) {
 	scanMut.Lock()
 	previousPacket := recentPacketTime[ipSrc]
-	//oldestPacket := firstPacketTime[ipSrc]
+	oldestPacket := firstPacketTime[ipSrc]
 	allDests := scanMap[ipSrc]
 	if previousPacket.IsZero() {
 		//first packet for this ipSource scan
@@ -155,16 +155,16 @@ func packetRateCheck(recent time.Time, ipSrc uint16, ipDest uint16) {
 		log.Fatal(err)
 	}
 
-	/*longDifference := int(recent.Sub(oldestPacket))
+	longDifference := int(recent.Sub(oldestPacket))
 	numPackets := 0
 	scanMut.Lock()
 	for _, v := range allDests {
 		numPackets += v
 	}
-	scanMut.Unlock()*/
-	//average := float64(numPackets) / (float64(longDifference) / float64(10e9))
+	scanMut.Unlock()
+	average := float64(numPackets) / (float64(longDifference) / float64(10e9))
 	//fmt.Printf("average: %e, longDifference: %d, numPackets: %d\n", average, longDifference, numPackets)
-	if (float64(difference)) >= float64(expireTime) /*|| average < SLOWEST_RATE */ {
+	if (float64(difference)) >= float64(expireTime) || average < SLOWEST_RATE {
 		/*if difference >= expireTime {
 			fmt.Printf("480: %d\n", difference)
 		}*/
